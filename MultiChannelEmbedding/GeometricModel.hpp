@@ -246,48 +246,6 @@ public:
 
 	}
 
-	virtual void train_triplet_subgraph_RM(const pair<pair<int, int>, int>& triplet, vector<vec>& embedding_entity_s, vector<vec>& embedding_relation_s,
-		vector<vector<vec>>& embedding_clusters_s, vector<vec>& weights_clusters_s, vector<int>& size_clusters_s,
-		vector<pair<pair<int, int>, int>> subgraph)
-	{
-		vec& head = embedding_entity_s[triplet.first.first];
-		vec& tail = embedding_entity_s[triplet.first.second];
-		vec& relation = embedding_relation_s[triplet.second];
-
-		pair<pair<int, int>, int> triplet_f;
-		data_model.sample_false_triplet(triplet, triplet_f);
-
-		if (prob_triplets_subgraph(triplet, embedding_entity_s, embedding_relation_s, embedding_clusters_s, weights_clusters_s, size_clusters_s) - prob_triplets_subgraph(triplet_f, embedding_entity_s, embedding_relation_s, embedding_clusters_s, weights_clusters_s, size_clusters_s) > training_threshold)
-			return;
-
-		vec& head_f = embedding_entity_s[triplet_f.first.first];
-		vec& tail_f = embedding_entity_s[triplet_f.first.second];
-		vec& relation_f = embedding_relation_s[triplet_f.second];
-
-		double prob_true = prob_triplets(triplet);
-		double prob_true_subgraph = prob_triplets_subgraph(triplet, embedding_entity_s, embedding_relation_s, embedding_clusters_s, weights_clusters_s, size_clusters_s);
-
-		head -= alpha * sign(head + relation - tail) * (prob_true > prob_true_subgraph ? -1 : 1);
-		tail += alpha * sign(head + relation - tail) * (prob_true > prob_true_subgraph ? -1 : 1);
-		relation -= alpha * sign(head + relation - tail) * (prob_true > prob_true_subgraph ? -1 : 1);
-
-		if (norm_L2(head) > 1.0)
-			head = normalise(head);
-
-		if (norm_L2(tail) > 1.0)
-			tail = normalise(tail);
-
-		if (norm_L2(relation) > 1.0)
-			relation = normalise(relation);
-
-		if (norm_L2(head_f) > 1.0)
-			head_f = normalise(head_f);
-
-		if (norm_L2(tail_f) > 1.0)
-			tail_f = normalise(tail_f);
-
-	}
-
 	virtual void relation_reg(int i, int j, double factor)
 	{
 		if (i == j)
@@ -673,31 +631,6 @@ public:
 			relation_f = normalise(relation_f);
 	}
 
-	virtual void train_cluster_once_subgraph_RM(
-		const pair<pair<int, int>, int>& triplet,
-		int cluster, double prob_true, double prob_true_subgraph, double factor,
-		vector<int>& size_clusters_s, vector<vec>& embedding_entity_s,
-		vector<vector<vec>>& embedding_clusters_s, vector<vec>& weights_clusters_s)
-	{
-		vec& head = embedding_entity_s[triplet.first.first];
-		vec& tail = embedding_entity_s[triplet.first.second];
-		vec& relation = embedding_clusters_s[triplet.second][cluster];
-
-		double prob_local_true = exp(-sum(abs(head + relation - tail)));
-
-		weights_clusters_s[triplet.second][cluster] +=
-			factor / prob_true_subgraph * prob_local_true * sign(weights_clusters_s[triplet.second][cluster]);
-		head -= factor * sign(head + relation - tail) * prob_local_true / prob_true_subgraph
-			* fabs(weights_clusters_s[triplet.second][cluster]) * (prob_true > prob_true_subgraph ? -1 : 1);
-		tail += factor * sign(head + relation - tail) * prob_local_true / prob_true_subgraph
-			* fabs(weights_clusters_s[triplet.second][cluster]) * (prob_true > prob_true_subgraph ? -1 : 1);
-		relation -= factor * sign(head + relation - tail)
-			* prob_local_true / prob_true_subgraph * fabs(weights_clusters[triplet.second][cluster]) * (prob_true > prob_true_subgraph ? -1 : 1);
-
-		if (norm_L2(relation) > 1.0)
-			relation = normalise(relation);
-	}
-
 	virtual void train_triplet(const pair<pair<int, int>, int>& triplet)
 	{
 		vec& head = embedding_entity[triplet.first.first];
@@ -894,64 +827,6 @@ public:
 			weights_clusters_s[triplet.second] = normalise(weights_clusters_s[triplet.second]);
 	}
 
-	virtual void train_triplet_subgraph_RM(const pair<pair<int, int>, int>& triplet, vector<vec>& embedding_entity_s, vector<vec>& embedding_relation_s,
-		vector<vector<vec>>& embedding_clusters_s, vector<vec>& weights_clusters_s, vector<int>& size_clusters_s,
-		vector<pair<pair<int, int>, int>> subgraph)
-	{
-		vec& head = embedding_entity_s[triplet.first.first];
-		vec& tail = embedding_entity_s[triplet.first.second];
-
-		if (!head.is_finite())
-			cout << "d";
-
-		pair<pair<int, int>, int> triplet_f = triplet;
-		data_model.sample_false_triplet(triplet, triplet_f);
-
-		double prob_true = training_prob_triplets(triplet);
-		double prob_true_subgraph = training_prob_triplets_subgraph(triplet, size_clusters_s, embedding_entity_s, embedding_clusters_s, weights_clusters_s);
-		double prob_false_subgraph = training_prob_triplets_subgraph(triplet_f, size_clusters_s, embedding_entity_s, embedding_clusters_s, weights_clusters_s);
-
-		if (prob_true_subgraph / prob_false_subgraph > exp(training_threshold))
-			return;
-
-		for (int c = 0; c<size_clusters_s[triplet.second]; ++c)
-		{
-			train_cluster_once_subgraph_RM(triplet, c, prob_true, prob_true_subgraph, multify * alpha, size_clusters_s, embedding_entity_s, embedding_clusters_s, weights_clusters_s);
-		}
-
-		double prob_new_component = CRP_factor * exp(-sum(abs(head - tail)));
-
-		if (randu() < prob_new_component / (prob_new_component + prob_true_subgraph)
-			&& size_clusters_s[triplet.second] < 20
-			&& epos >= step_before)
-		{
-#pragma omp critical
-			{
-				weights_clusters_s[triplet.second][size_clusters_s[triplet.second]] = CRP_factor;
-				embedding_clusters_s[triplet.second][size_clusters_s[triplet.second]] = (2 * randu(dim, 1) - 1)*sqrt(6.0 / dim); //tail - head;
-				++size_clusters_s[triplet.second];
-			}
-		}
-
-		vec& head_f = embedding_entity_s[triplet_f.first.first];
-		vec& tail_f = embedding_entity_s[triplet_f.first.second];
-
-		if (norm_L2(head) > 1.0)
-			head = normalise(head);
-
-		if (norm_L2(tail) > 1.0)
-			tail = normalise(tail);
-
-		if (norm_L2(head_f) > 1.0)
-			head_f = normalise(head_f);
-
-		if (norm_L2(tail_f) > 1.0)
-			tail_f = normalise(tail_f);
-
-		if (be_weight_normalized)
-			weights_clusters_s[triplet.second] = normalise(weights_clusters_s[triplet.second]);
-	}
-
 public:
 	virtual void deep_copy_for_subgraph(vector<vec>& embedding_entity_s, vector<vec>& embedding_relation_s, vector<vector<vec>>& embedding_clusters_s,
 		vector<vec>& weights_clusters_s, vector<int>& size_clusters_s)
@@ -1007,4 +882,5 @@ public:
 			}
 		}
 	}
-}; 
+};
+ 

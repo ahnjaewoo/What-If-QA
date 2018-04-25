@@ -108,9 +108,6 @@ public:
 	virtual void train_triplet_subgraph_WG(const pair<pair<int, int>, int>& triplet, vector<vec>& embedding_entity_s, vector<vec>& embedding_relation_s,
 		vector<vector<vec>>& embedding_clusters_s, vector<vec>& weights_clusters_s, vector<int>& size_clusters_s,
 		vector<pair<pair<int, int>, int>> subgraph, vector<int> cut_pos, vector<int> cut_tot, vector<int> cut_tot_rel) = 0;
-	virtual void train_triplet_subgraph_RM(const pair<pair<int, int>, int>& triplet, vector<vec>& embedding_entity_s, vector<vec>& embedding_relation_s,
-		vector<vector<vec>>& embedding_clusters_s, vector<vec>& weights_clusters_s, vector<int>& size_clusters_s,
-		vector<pair<pair<int, int>, int>> subgraph) = 0;
 
 
 public:
@@ -188,76 +185,6 @@ public:
 					for (auto j = subgraph[i].begin(); j != subgraph[i].end(); j++)
 					{
 						train_triplet_subgraph_WG(*j, embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters, subgraph[i], cut_pos_subgraph[i], cut_tot_subgraph, cut_tot_rel_subgraph);
-					}
-				}
-
-				//test : link prediction
-				test_link_prediction_subgraph(i);
-
-				//test : triplet classification
-				test_triplet_classification_subgraph(i);
-			}
-
-			print_final_test_link_prediction_subgraph();
-			print_final_test_triplet_classification_subgraph();
-		}
-		else if (gradient_mode == 2)
-		{
-			//train_triplet_subgraph_RM
-			for (auto i = 0; i < data_model.data_test_true.size(); i++)
-			{
-				++cons_bar;
-
-				//deep copy
-				deep_copy_for_subgraph(embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters);
-
-				//train
-				for (auto tot = 0; tot < total_epos; tot++)
-				{
-#pragma omp parallel for
-					for (auto j = subgraph[i].begin(); j != subgraph[i].end(); j++)
-					{
-						train_triplet_subgraph(*j, embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters, subgraph[i]);
-					}
-#pragma omp parallel for
-					for (auto j = dev_subgraph[i].begin(); j != dev_subgraph[i].end(); j++)
-					{
-						train_triplet_subgraph_RM(*j, embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters, subgraph[i]);
-					}
-				}
-
-				//test : link prediction
-				test_link_prediction_subgraph(i);
-
-				//test : triplet classification
-				test_triplet_classification_subgraph(i);
-			}
-
-			print_final_test_link_prediction_subgraph();
-			print_final_test_triplet_classification_subgraph();
-		}
-		else if (gradient_mode == 3)
-		{
-			//train_triplet_subgraph_RM
-			for (auto i = 0; i < data_model.data_test_true.size(); i++)
-			{
-				++cons_bar;
-
-				//deep copy
-				deep_copy_for_subgraph(embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters);
-
-				//train
-				for (auto tot = 0; tot < total_epos; tot++)
-				{
-#pragma omp parallel for
-					for (auto j = subgraph[i].begin(); j != subgraph[i].end(); j++)
-					{
-						train_triplet_subgraph_WG(*j, embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters, subgraph[i], cut_pos_subgraph[i], cut_tot_subgraph, cut_tot_rel_subgraph);
-					}
-#pragma omp parallel for
-					for (auto j = dev_subgraph[i].begin(); j != dev_subgraph[i].end(); j++)
-					{
-							train_triplet_subgraph_RM(*j, embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters, subgraph[i]);
 					}
 				}
 
@@ -1051,7 +978,7 @@ public:
 		logging.record() << "Filter.BestMEANS = " << best_link_fmean;
 		logging.record() << "Filter.BestHITS = " << best_link_fhitatten;
 	}
-	
+
 	void print_final_test_link_prediction_subgraph()
 	{
 		best_link_mean = min(best_link_mean, mean / total);
@@ -1160,4 +1087,5 @@ public:
 		cout << "BAD";
 		return NULL;
 	}
-}; 
+};
+ 
