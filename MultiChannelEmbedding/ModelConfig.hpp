@@ -8,6 +8,7 @@ public:
 	const string	training;
 	const string	developing;
 	const string	testing;
+	const string	condition;
 	const string	name;
 	const bool	self_false_sampling;
 
@@ -23,6 +24,25 @@ public:
 		training(training),
 		developing(developing),
 		testing(testing),
+		self_false_sampling(self_false_sampling)
+	{
+		;
+	}
+
+public:
+	Dataset(const string& name,
+		const string& base_dir,
+		const string& training,
+		const string& developing,
+		const string& query,
+		const string& condition,
+		const bool& self_false_sampling)
+		:name(name),
+		base_dir(base_dir),
+		training(training),
+		developing(developing),
+		testing(query),
+		condition(condition),
 		self_false_sampling(self_false_sampling)
 	{
 		;
