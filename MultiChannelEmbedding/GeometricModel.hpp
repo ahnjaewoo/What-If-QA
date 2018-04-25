@@ -180,7 +180,7 @@ public:
 
 	virtual void train_triplet_subgraph_BM(const pair<pair<int, int>, int>& triplet, vector<vec>& embedding_entity_s, vector<vec>& embedding_relation_s,
 		vector<vector<vec>>& embedding_clusters_s, vector<vec>& weights_clusters_s, vector<int>& size_clusters_s,
-		vector<pair<pair<int, int>, int>> subgraph, vector<int> cut_pos, vector<int> cut_tot, vector<int> cut_tot_rel)
+		vector<pair<pair<int, int>, int>> subgraph, vector<int> cut_pos)
 
 	{
 		vec& head = embedding_entity_s[triplet.first.first];
@@ -520,8 +520,7 @@ public:
 		int cluster, double prob_true, double prob_false, double factor,
 		vector<int>& size_clusters_s, vector<vec>& embedding_entity_s,
 		vector<vector<vec>>& embedding_clusters_s, vector<vec>& weights_clusters_s,
-		vector<pair<pair<int, int>, int>> subgraph, vector<int> cut_pos, vector<int> cut_tot,
-		vector<int> cut_tot_rel)
+		vector<pair<pair<int, int>, int>> subgraph, vector<int> cut_pos)
 	{
 		vec& head = embedding_entity_s[triplet.first.first];
 		vec& tail = embedding_entity_s[triplet.first.second];
@@ -684,7 +683,7 @@ public:
 
 	virtual void train_triplet_subgraph_BM(const pair<pair<int, int>, int>& triplet, vector<vec>& embedding_entity_s, vector<vec>& embedding_relation_s,
 		vector<vector<vec>>& embedding_clusters_s, vector<vec>& weights_clusters_s, vector<int>& size_clusters_s,
-		vector<pair<pair<int, int>, int>> subgraph, vector<int> cut_pos, vector<int> cut_tot, vector<int> cut_tot_rel)
+		vector<pair<pair<int, int>, int>> subgraph, vector<int> cut_pos)
 	{
 		vec& head = embedding_entity_s[triplet.first.first];
 		vec& tail = embedding_entity_s[triplet.first.second];
@@ -704,7 +703,7 @@ public:
 
 		for (int c = 0; c<size_clusters_s[triplet.second]; ++c)
 		{
-			train_cluster_once_subgraph_BM(triplet, triplet_f, c, prob_true, prob_false, multify * alpha, size_clusters_s, embedding_entity_s, embedding_clusters_s, weights_clusters_s, subgraph, cut_pos, cut_tot, cut_tot_rel);
+			train_cluster_once_subgraph_BM(triplet, triplet_f, c, prob_true, prob_false, multify * alpha, size_clusters_s, embedding_entity_s, embedding_clusters_s, weights_clusters_s, subgraph, cut_pos);
 		}
 
 		double prob_new_component = CRP_factor * exp(-sum(abs(head - tail)));

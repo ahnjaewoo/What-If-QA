@@ -49,8 +49,6 @@ public:
 	vector<vector<pair<pair<int, int>, int>>> subgraph;
 	vector<vector<pair<pair<int, int>, int>>> dev_subgraph;
 	vector<vector<int>> cut_pos_subgraph;
-	vector<int> cut_tot_subgraph;
-	vector<int> cut_tot_rel_subgraph;
 	int gradient_mode;
 
 public:
@@ -107,7 +105,7 @@ public:
 		vector<pair<pair<int, int>, int>> subgraph) = 0;
 	virtual void train_triplet_subgraph_BM(const pair<pair<int, int>, int>& triplet, vector<vec>& embedding_entity_s, vector<vec>& embedding_relation_s,
 		vector<vector<vec>>& embedding_clusters_s, vector<vec>& weights_clusters_s, vector<int>& size_clusters_s,
-		vector<pair<pair<int, int>, int>> subgraph, vector<int> cut_pos, vector<int> cut_tot, vector<int> cut_tot_rel) = 0;
+		vector<pair<pair<int, int>, int>> subgraph, vector<int> cut_pos) = 0;
 
 
 public:
@@ -188,7 +186,7 @@ public:
 #pragma omp parallel for
 					for (auto j = dev_subgraph[i].begin(); j != dev_subgraph[i].end(); j++)
 					{
-						train_triplet_subgraph_BM(*j, embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters, subgraph[i], cut_pos_subgraph[i], cut_tot_subgraph, cut_tot_rel_subgraph);
+						train_triplet_subgraph_BM(*j, embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters, subgraph[i], cut_pos_subgraph[i]);
 					}
 				}
 
@@ -417,21 +415,21 @@ public:
 				}
 
 				//constructing cutting edge subgraph
-                                if (gradient_mode == 1) {
-                                        set<string> diff;
-                                        set_difference(data_model.set_entity.begin(), data_model.set_entity.end(), A.begin(), A.end(), inserter(diff, diff.begin()));
-                                        for (auto t : data_model.data_train)
-                                        {
-                                                int e1 = t.first.first;
-                                                int e2 = t.first.second;
-                                                string st1 = data_model.entity_id_to_name[e1];
-                                                string st2 = data_model.entity_id_to_name[e2];
-                                                if (A.find(st1) != A.end() && diff.find(st2) != diff.end())
+				if (gradient_mode == 1) {
+					set<string> diff;
+					set_difference(data_model.set_entity.begin(), data_model.set_entity.end(), A.begin(), A.end(), inserter(diff, diff.begin()));
+					for (auto t : data_model.data_train)
+					{
+						int e1 = t.first.first;
+						int e2 = t.first.second;
+						string st1 = data_model.entity_id_to_name[e1];
+						string st2 = data_model.entity_id_to_name[e2];
+						if (A.find(st1) != A.end() && diff.find(st2) != diff.end())
 							dev_subgraph[i].push_back(t);
-                                                if (A.find(st2) != A.end() && diff.find(st1) != diff.end())
+						if (A.find(st2) != A.end() && diff.find(st1) != diff.end())
 							dev_subgraph[i].push_back(t);
-                                        }
-                                }
+					}
+				}
 			}
 		}
 		else
@@ -500,14 +498,6 @@ public:
 		subgraph.resize(data_model.data_test_true.size());
 		dev_subgraph.resize(data_model.data_test_true.size());
 		cut_pos_subgraph.resize(data_model.data_test_true.size());
-		cut_tot_subgraph.resize(data_model.set_entity.size());
-		cut_tot_rel_subgraph.resize(data_model.set_relation.size());
-		for (int i = 0; i < data_model.set_entity.size(); i++) {
-			cut_tot_subgraph[i] = data_model.count_entity_subgraph.at(data_model.entity_id_to_name[i]);
-		}
-		for (int i = 0; i < data_model.set_relation.size(); i++) {
-			cut_tot_rel_subgraph[i] = data_model.count_relation_subgraph.at(data_model.relation_id_to_name[i]);
-		}
 	}
 
 public:
