@@ -1,7 +1,5 @@
 #include "Import.hpp"
 #include "DetailedConfig.hpp"
-// #include "LatentModel.hpp"
-#include "OrbitModel.hpp"
 #include "Task.hpp"
 #include <omp.h>
 
@@ -13,8 +11,8 @@ int main(int argc, char* argv[])
 
 	Model* model = nullptr;
 
-	model = new TransE(FB15K, LinkPredictionTail, report_path, 20, 0.01, 1);
-	model->train(50);
+	model = new TransE(WN18_, LinkPredictionTail, report_path, 20, 0.01, 1);
+	model->run(50);
 	model->test();
 	delete model;
 

@@ -15,6 +15,8 @@ public:
 	vector<pair<pair<int, int>, int> >	data_test_true;
 	vector<pair<pair<int, int>, int> >	data_test_false;
 
+	vector<vector<pair<pair<int, int>, int> > >	data_condition;
+
 public:
 	set<int>			set_tail;
 	set<int>			set_head;
@@ -40,6 +42,8 @@ public:
 	vector<double>		relation_tph;
 	vector<double>		relation_hpt;
 	map<string, int>	count_entity;
+	map<string, int>	count_entity_subgraph;
+	map<string, int>	count_relation_subgraph;
 
 public:
 	map<int, map<int, int> >	tails;
@@ -49,7 +53,7 @@ public:
 	map<int, map<int, vector<int> > >     rel_heads;
 	map<int, map<int, vector<int> > >     rel_tails;
 	map<pair<int, int>, int>		     rel_finder;
-	
+
 public:
 	int zeroshot_pointer;
 
@@ -57,6 +61,7 @@ public:
 	DataModel(const Dataset& dataset)
 	{
 		load_training(dataset.base_dir + dataset.training);
+
 		relation_hpt.resize(set_relation.size());
 		relation_tph.resize(set_relation.size());
 		for(auto i=0; i!=set_relation.size(); ++i)
@@ -85,7 +90,8 @@ public:
 		zeroshot_pointer = set_entity.size();
 		load_testing(dataset.base_dir + dataset.developing, data_dev_true, data_dev_false, dataset.self_false_sampling);
 		load_testing(dataset.base_dir + dataset.testing, data_test_true, data_test_false, dataset.self_false_sampling);
-		
+		load_condition(dataset.base_dir + dataset.condition, data_condition);
+
 		set_relation_head.resize(set_entity.size());
 		set_relation_tail.resize(set_relation.size());
 		prob_head.resize(set_entity.size());
@@ -226,10 +232,14 @@ public:
 	void load_training(const string& filename)
 	{
 		fstream fin(filename.c_str());
-		while(!fin.eof())
+		string line;
+		while(getline(fin, line))
 		{
+			if (line == "") break;
+			stringstream ss(line);
 			string head, tail, relation;
-			fin>>head>>relation>>tail;
+
+			ss>>head>>relation>>tail;
 
 			if (entity_name_to_id.find(head) == entity_name_to_id.end())
 			{
@@ -266,6 +276,9 @@ public:
 
 			++ count_entity[head];
 			++ count_entity[tail];
+			++count_entity_subgraph[head];
+			++count_entity_subgraph[tail];
+			++count_relation_subgraph[relation];
 
 			rel_heads[relation_name_to_id[relation]][entity_name_to_id[head]]
 				.push_back(entity_name_to_id[tail]);
@@ -285,15 +298,18 @@ public:
 		bool self_sampling = false)
 	{
 		fstream fin(filename.c_str());
+		string line;
 		if (self_sampling == false)
 		{
-			while(!fin.eof())
+			while(getline(fin, line))
 			{
+				if (line == "") break;
+				stringstream ss(line);
 				string head, tail, relation;
 				int flag_true;
 
-				fin>>head>>relation>>tail;
-				fin>>flag_true;
+				ss>>head>>relation>>tail;
+				ss>>flag_true;
 
 				if (entity_name_to_id.find(head) == entity_name_to_id.end())
 				{
@@ -330,12 +346,14 @@ public:
 		}
 		else
 		{
-			while(!fin.eof())
+			while(getline(fin, line))
 			{
+				if (line == "") break;
+				stringstream ss(line);
 				string head, tail, relation;
 				pair<pair<int, int>, int>	sample_false;
 
-				fin>>head>>relation>>tail;
+				ss>>head>>relation>>tail;
 
 				if (entity_name_to_id.find(head) == entity_name_to_id.end())
 				{
@@ -423,4 +441,102 @@ public:
 				return;
 		}
 	}
-};
+
+	void load_query(const string& filename, vector<pair<pair<int, int>, int>>& query)
+	{
+		fstream fin(filename.c_str());
+		string line;
+
+		while (getline(fin, line))
+		{
+			if (line == "") break;
+			stringstream ss(line);
+			string head, tail, relation;
+			ss >> head >> relation >> tail;
+
+			if (entity_name_to_id.find(head) == entity_name_to_id.end())
+			{
+				entity_name_to_id.insert(make_pair(head, entity_name_to_id.size()));
+				entity_id_to_name.push_back(head);
+			}
+
+			if (entity_name_to_id.find(tail) == entity_name_to_id.end())
+			{
+				entity_name_to_id.insert(make_pair(tail, entity_name_to_id.size()));
+				entity_id_to_name.push_back(tail);
+			}
+
+			if (relation_name_to_id.find(relation) == relation_name_to_id.end())
+			{
+				relation_name_to_id.insert(make_pair(relation, relation_name_to_id.size()));
+				relation_id_to_name.push_back(relation);
+			}
+
+			set_entity.insert(head);
+			set_entity.insert(tail);
+			set_relation.insert(relation);
+
+			query.push_back(make_pair(make_pair(entity_name_to_id[head], entity_name_to_id[tail]),
+				relation_name_to_id[relation]));
+
+			check_data_all.insert(make_pair(make_pair(entity_name_to_id[head], entity_name_to_id[tail]),
+				relation_name_to_id[relation]));
+		}
+
+		fin.close();
+	}
+
+	void load_condition(const string& filename, vector<vector<pair<pair<int, int>, int>>>& condition)
+	{
+		fstream fin(filename.c_str());
+		vector<pair<pair<int, int>, int>> conditions_per_query;
+		string line;
+		while (getline(fin, line))
+		{
+			if (line == "") break;
+			if (line == "-----") {
+				condition.push_back(conditions_per_query);
+				conditions_per_query.clear();
+				continue;
+			}
+
+			stringstream ss(line);
+			string head, tail, relation;
+			ss >> head >> relation >> tail;
+
+			if (entity_name_to_id.find(head) == entity_name_to_id.end())
+			{
+				entity_name_to_id.insert(make_pair(head, entity_name_to_id.size()));
+				entity_id_to_name.push_back(head);
+			}
+
+			if (entity_name_to_id.find(tail) == entity_name_to_id.end())
+			{
+				entity_name_to_id.insert(make_pair(tail, entity_name_to_id.size()));
+				entity_id_to_name.push_back(tail);
+			}
+
+			if (relation_name_to_id.find(relation) == relation_name_to_id.end())
+			{
+				relation_name_to_id.insert(make_pair(relation, relation_name_to_id.size()));
+				relation_id_to_name.push_back(relation);
+			}
+
+			set_entity.insert(head);
+			set_entity.insert(tail);
+			set_relation.insert(relation);
+
+			++count_entity_subgraph[head];
+			++count_entity_subgraph[tail];
+			++count_relation_subgraph[relation];
+
+			conditions_per_query.push_back(make_pair(make_pair(entity_name_to_id[head], entity_name_to_id[tail]),
+				relation_name_to_id[relation]));
+
+			check_data_all.insert(make_pair(make_pair(entity_name_to_id[head], entity_name_to_id[tail]),
+				relation_name_to_id[relation]));
+		}
+
+		fin.close();
+	}
+}; 

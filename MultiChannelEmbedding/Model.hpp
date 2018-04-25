@@ -3,6 +3,11 @@
 #include "ModelConfig.hpp"
 #include "DataModel.hpp"
 #include <boost/progress.hpp>
+#include <cmath>
+#include <cstdlib>
+#include <ctime>
+#include <fstream>
+#include <time.h>
 
 using namespace std;
 using namespace arma;
@@ -14,11 +19,39 @@ public:
 	const TaskType		task_type;
 	const bool			be_deleted_data_model;
 
+private:
+	vector<vec> embedding_entity;
+	vector<vec>	embedding_relation;
+	vector<vector<vec>> embedding_clusters;
+	vector<vec> weights_clusters;
+	vector<int> size_clusters;
+
+public:
+	double mean;
+	double hits;
+	double fmean;
+	double fhits;
+	double rmrr;
+	double fmrr;
+	double total;
+	vector<double> rrank;
+	vector<double> frank;
+	double real_hit;
+	double lreal_hit;
+
 public:
 	ModelLogging&		logging;
 
 public:
 	int	epos;
+
+public:
+	vector<vector<pair<pair<int, int>, int>>> subgraph;
+	vector<vector<pair<pair<int, int>, int>>> dev_subgraph;
+	vector<vector<int>> cut_pos_subgraph;
+	vector<int> cut_tot_subgraph;
+	vector<int> cut_tot_rel_subgraph;
+	int gradient_mode;
 
 public:
 	Model(const Dataset& dataset,
@@ -65,6 +98,20 @@ public:
 public:
 	virtual double prob_triplets(const pair<pair<int, int>, int>& triplet) = 0;
 	virtual void train_triplet(const pair<pair<int, int>, int>& triplet) = 0;
+	virtual double prob_triplets_subgraph(const pair<pair<int, int>, int>& triplet, vector<vec>& embedding_entity_s, vector<vec>& embedding_relation_s,
+		vector<vector<vec>>& embedding_clusters_s, vector<vec>& weights_clusters_s, vector<int>& size_clusters_s) = 0;
+	virtual void deep_copy_for_subgraph(vector<vec>& embedding_entity_s, vector<vec>& embedding_relation_s, vector<vector<vec>>& embedding_clusters_s,
+		vector<vec>& weights_clusters_s, vector<int>& size_clusters_s) = 0;
+	virtual void train_triplet_subgraph(const pair<pair<int, int>, int>& triplet, vector<vec>& embedding_entity_s, vector<vec>& embedding_relation_s,
+		vector<vector<vec>>& embedding_clusters_s, vector<vec>& weights_clusters_s, vector<int>& size_clusters_s,
+		vector<pair<pair<int, int>, int>> subgraph) = 0;
+	virtual void train_triplet_subgraph_WG(const pair<pair<int, int>, int>& triplet, vector<vec>& embedding_entity_s, vector<vec>& embedding_relation_s,
+		vector<vector<vec>>& embedding_clusters_s, vector<vec>& weights_clusters_s, vector<int>& size_clusters_s,
+		vector<pair<pair<int, int>, int>> subgraph, vector<int> cut_pos, vector<int> cut_tot, vector<int> cut_tot_rel) = 0;
+	virtual void train_triplet_subgraph_RM(const pair<pair<int, int>, int>& triplet, vector<vec>& embedding_entity_s, vector<vec>& embedding_relation_s,
+		vector<vector<vec>>& embedding_clusters_s, vector<vec>& weights_clusters_s, vector<int>& size_clusters_s,
+		vector<pair<pair<int, int>, int>> subgraph) = 0;
+
 
 public:
 	virtual void train(bool last_time = false)
@@ -78,11 +125,166 @@ public:
 		}
 	}
 
+	virtual void train_and_test_subgraph(int total_epos)
+	{
+		//parameter initialization
+		mean = 0;
+		hits = 0;
+		fmean = 0;
+		fhits = 0;
+		rmrr = 0;
+		fmrr = 0;
+		real_hit = 0;
+		lreal_hit = 0;
+		total = data_model.data_test_true.size();
+		rrank.resize(data_model.data_test_true.size());
+		frank.resize(data_model.data_test_true.size());
+
+		cout << "\nTraining subgraph & testing test-set.." << endl;
+		boost::progress_display	cons_bar(data_model.data_test_true.size());
+
+		if (gradient_mode == 0)
+		{
+			for (auto i = 0; i < data_model.data_test_true.size(); i++)
+			{
+				++cons_bar;
+
+				//deep copy
+				deep_copy_for_subgraph(embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters);
+
+				//train
+				for (auto tot = 0; tot < total_epos; tot++)
+				{
+#pragma omp parallel for
+					for (auto j = subgraph[i].begin(); j != subgraph[i].end(); j++)
+					{
+						train_triplet_subgraph(*j, embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters, subgraph[i]);
+					}
+				}
+
+				//test : link prediction
+				test_link_prediction_subgraph(i);
+
+				//test : triplet classification
+				test_triplet_classification_subgraph(i);
+			}
+
+			print_final_test_link_prediction_subgraph();
+			print_final_test_triplet_classification_subgraph();
+		}
+		else if (gradient_mode == 1)
+		{
+			for (auto i = 0; i < data_model.data_test_true.size(); i++)
+			{
+				++cons_bar;
+
+				//deep copy
+				deep_copy_for_subgraph(embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters);
+
+				//train
+				for (auto tot = 0; tot < total_epos; tot++)
+				{
+#pragma omp parallel for
+					for (auto j = subgraph[i].begin(); j != subgraph[i].end(); j++)
+					{
+						train_triplet_subgraph_WG(*j, embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters, subgraph[i], cut_pos_subgraph[i], cut_tot_subgraph, cut_tot_rel_subgraph);
+					}
+				}
+
+				//test : link prediction
+				test_link_prediction_subgraph(i);
+
+				//test : triplet classification
+				test_triplet_classification_subgraph(i);
+			}
+
+			print_final_test_link_prediction_subgraph();
+			print_final_test_triplet_classification_subgraph();
+		}
+		else if (gradient_mode == 2)
+		{
+			//train_triplet_subgraph_RM
+			for (auto i = 0; i < data_model.data_test_true.size(); i++)
+			{
+				++cons_bar;
+
+				//deep copy
+				deep_copy_for_subgraph(embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters);
+
+				//train
+				for (auto tot = 0; tot < total_epos; tot++)
+				{
+#pragma omp parallel for
+					for (auto j = subgraph[i].begin(); j != subgraph[i].end(); j++)
+					{
+						train_triplet_subgraph(*j, embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters, subgraph[i]);
+					}
+#pragma omp parallel for
+					for (auto j = dev_subgraph[i].begin(); j != dev_subgraph[i].end(); j++)
+					{
+						train_triplet_subgraph_RM(*j, embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters, subgraph[i]);
+					}
+				}
+
+				//test : link prediction
+				test_link_prediction_subgraph(i);
+
+				//test : triplet classification
+				test_triplet_classification_subgraph(i);
+			}
+
+			print_final_test_link_prediction_subgraph();
+			print_final_test_triplet_classification_subgraph();
+		}
+		else if (gradient_mode == 3)
+		{
+			//train_triplet_subgraph_RM
+			for (auto i = 0; i < data_model.data_test_true.size(); i++)
+			{
+				++cons_bar;
+
+				//deep copy
+				deep_copy_for_subgraph(embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters);
+
+				//train
+				for (auto tot = 0; tot < total_epos; tot++)
+				{
+#pragma omp parallel for
+					for (auto j = subgraph[i].begin(); j != subgraph[i].end(); j++)
+					{
+						train_triplet_subgraph_WG(*j, embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters, subgraph[i], cut_pos_subgraph[i], cut_tot_subgraph, cut_tot_rel_subgraph);
+					}
+#pragma omp parallel for
+					for (auto j = dev_subgraph[i].begin(); j != dev_subgraph[i].end(); j++)
+					{
+							train_triplet_subgraph_RM(*j, embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters, subgraph[i]);
+					}
+				}
+
+				//test : link prediction
+				test_link_prediction_subgraph(i);
+
+				//test : triplet classification
+				test_triplet_classification_subgraph(i);
+			}
+
+			print_final_test_link_prediction_subgraph();
+			print_final_test_triplet_classification_subgraph();
+		}
+		else
+		{
+			cout << "mode error!" << endl;
+			return;
+		}
+
+	}
+
 	void run(int total_epos)
 	{
 		logging.record() << "\t[Epos]\t" << total_epos;
 
 		--total_epos;
+		cout << "Training train-set.." << endl;
 		boost::progress_display	cons_bar(total_epos);
 		while (total_epos-- > 0)
 		{
@@ -100,39 +302,270 @@ public:
 	double		best_triplet_result;
 	double		best_link_mean;
 	double		best_link_hitatten;
+	double		best_link_deviation;
 	double		best_link_fmean;
 	double		best_link_fhitatten;
+	double		best_link_fdeviation;
 
 	void reset()
 	{
 		best_triplet_result = 0;
 		best_link_mean = 1e10;
 		best_link_hitatten = 0;
+		best_link_deviation = 0;
 		best_link_fmean = 1e10;
 		best_link_fhitatten = 0;
+		best_link_fdeviation = 0;
 	}
 
-	void test(int hit_rank = 10)
+	void initialize_cut(set<string> A, vector<int>& cut)
+	{
+		for (int i = 0; i < cut.size(); i++)
+		{
+			int count_cut = 0;
+			for (auto a : A)
+			{
+				int e1 = data_model.entity_name_to_id.at(a);
+				int e2 = i;
+
+				if (data_model.rel_finder.find(make_pair(e1, e2)) != data_model.rel_finder.end() ||
+					data_model.rel_finder.find(make_pair(e2, e1)) != data_model.rel_finder.end())
+					count_cut++;
+			}
+			cut[i] = count_cut;
+		}
+	}
+
+	void update_cut(set<string> diff, vector<int>& cut, string best_vertex)
+	{
+		for (string v : diff)
+		{
+			if (v != best_vertex) continue;
+
+			int e1 = data_model.entity_name_to_id.at(v);
+			int e2 = data_model.entity_name_to_id.at(best_vertex);
+			if (data_model.rel_finder.find(make_pair(e1, e2)) != data_model.rel_finder.end() ||
+				data_model.rel_finder.find(make_pair(e2, e1)) != data_model.rel_finder.end())
+				cut[e1] += 1;
+			break;
+		}
+	}
+
+	void bipartite(int budget, int q_in_subgraph = 1, int method = 0)
+	{
+		vector<int> b(data_model.data_test_true.size());
+
+		cout << "Bipartition and construction of subgraph.." << endl;
+
+		if (method == 1)
+		{
+			boost::progress_display	cons_bar(data_model.data_test_true.size());
+#pragma omp parallel for
+			for (auto i = 0; i < data_model.data_test_true.size(); ++i)
+			{
+				++cons_bar;
+
+				set<string> A;
+				if (q_in_subgraph)
+				{
+					A.insert(data_model.entity_id_to_name[data_model.data_test_true[i].first.first]);
+					A.insert(data_model.entity_id_to_name[data_model.data_test_true[i].first.second]);
+				}
+
+				for (auto j = 0; j < data_model.data_condition[i].size(); ++j)
+				{
+					A.insert(data_model.entity_id_to_name[data_model.data_condition[i][j].first.first]);
+					A.insert(data_model.entity_id_to_name[data_model.data_condition[i][j].first.second]);
+				}
+				b[i] = budget;
+				set<string> V = data_model.set_entity;
+				cut_pos_subgraph[i].resize(data_model.set_entity.size(), 0);
+				initialize_cut(A, cut_pos_subgraph[i]);
+				while (b[i]--)
+				{
+					int best_scr = numeric_limits<int>::max();
+					string best_vertex;
+					//update vertex set V
+					set<string> diff;
+					set_difference(V.begin(), V.end(), A.begin(), A.end(), inserter(diff, diff.begin()));
+					for (string v : diff) {
+						if (data_model.count_entity.find(v) == data_model.count_entity.end()) continue;
+						if (-data_model.count_entity.at(v) >= best_scr) continue;
+						int scr = -cut_pos_subgraph[i][data_model.entity_name_to_id.at(v)];
+						if (scr < best_scr)
+						{
+							best_scr = scr;
+							best_vertex = v;
+						}
+					}
+					if (best_scr >= 0) break;
+					A.insert(best_vertex);
+
+					update_cut(diff, cut_pos_subgraph[i], best_vertex);
+				}
+
+				//constructing subgraph + condition
+				for (auto j : A)
+				{
+					for (auto k : A)
+					{
+						if (j == k) continue;
+						int e1 = data_model.entity_name_to_id.at(j);
+						int e2 = data_model.entity_name_to_id.at(k);
+						if (data_model.rel_finder.find(make_pair(e1, e2)) != data_model.rel_finder.end())
+							subgraph[i].push_back(make_pair(make_pair(e1, e2), data_model.rel_finder.at(make_pair(e1, e2))));
+					}
+				}
+				for (auto j = 0; j < data_model.data_condition[i].size(); ++j)
+				{
+					subgraph[i].push_back(data_model.data_condition[i][j]);	//containing conditional part C
+				}
+
+				if (gradient_mode == 2 || gradient_mode == 3) {
+					for (auto j = data_model.data_dev_true.begin(); j != data_model.data_dev_true.end(); j++) {
+						if (A.find(data_model.entity_id_to_name[(*j).first.first]) != A.end() && A.find(data_model.entity_id_to_name[(*j).first.second]) != A.end())
+							dev_subgraph[i].push_back(*j);
+					}
+				}
+
+			}
+		}
+		else if (method == 0)
+		{
+			srand((unsigned int)time(0));
+			boost::progress_display	cons_bar(data_model.data_test_true.size());
+#pragma omp parallel for
+			for (auto i = 0; i < data_model.data_test_true.size(); ++i)
+			{
+				++cons_bar;
+
+				set<string> A;
+				if (q_in_subgraph)
+				{
+					A.insert(data_model.entity_id_to_name[data_model.data_test_true[i].first.first]);
+					A.insert(data_model.entity_id_to_name[data_model.data_test_true[i].first.second]);
+				}
+
+				for (auto j = 0; j < data_model.data_condition[i].size(); ++j)
+				{
+					A.insert(data_model.entity_id_to_name[data_model.data_condition[i][j].first.first]);
+					A.insert(data_model.entity_id_to_name[data_model.data_condition[i][j].first.second]);
+				}
+
+				cut_pos_subgraph[i].resize(data_model.set_entity.size(), 0);
+				while (A.size() < budget)
+				{
+					//insert entity
+					A.insert(data_model.entity_id_to_name[rand() % data_model.set_entity.size()]);
+				}
+
+				//constructing subgraph + condition
+				for (auto j : A)
+				{
+					for (auto k : A)
+					{
+						if (j == k) continue;
+						int e1 = data_model.entity_name_to_id.at(j);
+						int e2 = data_model.entity_name_to_id.at(k);
+						if (data_model.rel_finder.find(make_pair(e1, e2)) != data_model.rel_finder.end())
+							subgraph[i].push_back(make_pair(make_pair(e1, e2), data_model.rel_finder.at(make_pair(e1, e2))));
+					}
+				}
+				for (auto j = 0; j < data_model.data_condition[i].size(); ++j)
+				{
+					subgraph[i].push_back(data_model.data_condition[i][j]);	//containing conditional part C
+				}
+
+				if (gradient_mode == 2 || gradient_mode == 3) {
+					for (auto j = data_model.data_dev_true.begin(); j != data_model.data_dev_true.end(); j++) {
+						if (A.find(data_model.entity_id_to_name[(*j).first.first]) != A.end() && A.find(data_model.entity_id_to_name[(*j).first.second]) != A.end())
+							dev_subgraph[i].push_back(*j);
+					}
+				}
+
+			}
+		}
+		else
+		{
+			cout << "bipartite method error!" << endl;
+			return;
+		}
+
+	}
+
+	void test(bool subgraph_task = true, int mode = 0, int budget = 10, int subgraph_epos = 500, int q_in_subgraph = 1, int bipartite_method = 0, int hit_rank = 10)
 	{
 		logging.record();
 
 		best_link_mean = 1e10;
 		best_link_hitatten = 0;
+		best_link_deviation = 0;
 		best_link_fmean = 1e10;
 		best_link_fhitatten = 0;
+		best_link_fdeviation = 0;
 
-		if (task_type == LinkPredictionHead || task_type == LinkPredictionTail || task_type == LinkPredictionRelation)
-			test_link_prediction(hit_rank);
-		if (task_type == LinkPredictionHeadZeroShot || task_type == LinkPredictionTailZeroShot || task_type == LinkPredictionRelationZeroShot)
-			test_link_prediction_zeroshot(hit_rank);
-		else
-			test_triplet_classification();
+		if (subgraph_task) {
+
+			clock_t before, after;
+			before = clock();
+
+			//0. initialization
+			initialize_subgraph(mode);
+
+			//1. condition vector들과 관련된 training의 triple들 떼어내기 (subgraph)
+			// make a sub-graph containing verices and edges of conditions
+			bipartite(budget, q_in_subgraph, bipartite_method);
+
+			//2. subgraph + condition 학습
+			//triplet learning
+
+			//3 - 1. 그리고 밑에 있는 test task 수행
+			//test_link_prediction per test set
+			train_and_test_subgraph(subgraph_epos);
+
+			after = clock();
+			cout << "testing subgraph test_data time :  " << (double)(after - before) / CLOCKS_PER_SEC << "seconds" << endl;
+		}
+		else {
+
+			clock_t before, after;
+			before = clock();
+
+			//3 - 2. 그리고 밑에 있는 test task 수행
+			//test_link_prediction per test set
+			if (task_type == LinkPredictionHead || task_type == LinkPredictionTail || task_type == LinkPredictionRelation)
+				test_link_prediction(hit_rank);
+			if (task_type == LinkPredictionHeadZeroShot || task_type == LinkPredictionTailZeroShot || task_type == LinkPredictionRelationZeroShot)
+				test_link_prediction_zeroshot(hit_rank);
+			else
+				test_triplet_classification();
+
+			after = clock();
+			cout << "testing non subgraph test_data time :  " << (double)(after - before) / CLOCKS_PER_SEC << "seconds" << endl;
+		}
+	}
+
+	void initialize_subgraph(int mode)
+	{
+		gradient_mode = mode;
+		subgraph.resize(data_model.data_test_true.size());
+		dev_subgraph.resize(data_model.data_test_true.size());
+		cut_pos_subgraph.resize(data_model.data_test_true.size());
+		cut_tot_subgraph.resize(data_model.set_entity.size());
+		cut_tot_rel_subgraph.resize(data_model.set_relation.size());
+		for (int i = 0; i < data_model.set_entity.size(); i++) {
+			cut_tot_subgraph[i] = data_model.count_entity_subgraph.at(data_model.entity_id_to_name[i]);
+		}
+		for (int i = 0; i < data_model.set_relation.size(); i++) {
+			cut_tot_rel_subgraph[i] = data_model.count_relation_subgraph.at(data_model.relation_id_to_name[i]);
+		}
 	}
 
 public:
 	void test_triplet_classification()
 	{
-		double real_hit = 0;
+		real_hit = 0;
+		lreal_hit = 0;
 		for (auto r = 0; r < data_model.set_relation.size(); ++r)
 		{
 			vector<pair<double, bool>>	threshold_dev;
@@ -155,22 +588,22 @@ public:
 
 			double threshold;
 			double vari_mark = 0;
-			int total = 0;
+			int tot = 0;
 			int hit = 0;
 			for (auto i = threshold_dev.begin(); i != threshold_dev.end(); ++i)
 			{
 				if (i->second == false)
 					++hit;
-				++total;
+				++tot;
 
-				if (vari_mark <= 2 * hit - total + data_model.data_dev_true.size())
+				if (vari_mark <= 2 * hit - tot + data_model.data_dev_true.size())
 				{
-					vari_mark = 2 * hit - total + data_model.data_dev_true.size();
+					vari_mark = 2 * hit - tot + data_model.data_dev_true.size();
 					threshold = i->first;
 				}
 			}
 
-			double lreal_hit = 0;
+
 			double lreal_total = 0;
 			for (auto i = data_model.data_test_true.begin(); i != data_model.data_test_true.end(); ++i)
 			{
@@ -191,9 +624,6 @@ public:
 				if (prob_triplets(*i) <= threshold)
 					++real_hit, ++lreal_hit;
 			}
-
-			//logging.record()<<data_model.relation_id_to_name.at(r)<<"\t"
-			//	<<lreal_hit/lreal_total;
 		}
 
 		std::cout << epos << "\t Accuracy = "
@@ -210,15 +640,80 @@ public:
 		std::cout.flush();
 	}
 
+	void test_triplet_classification_subgraph(int idx)
+	{
+		pair<pair<int, int>, int> triplet = data_model.data_test_true[idx];
+		pair<pair<int, int>, int> triplet_f = data_model.data_test_true[idx];
+		getNegativeTriplet(triplet_f, idx);
+
+		int r = triplet.second;
+		vector<pair<double, bool>> threshold_dev;
+		for (auto i = data_model.data_dev_true.begin(); i != data_model.data_dev_true.end(); ++i)
+		{
+			if (i->second != r)
+				continue;
+			threshold_dev.push_back(make_pair(prob_triplets_subgraph(*i, embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters), true));
+		}
+
+		for (auto i = data_model.data_dev_false.begin(); i != data_model.data_dev_false.end(); ++i)
+		{
+			if (i->second != r)
+				continue;
+			threshold_dev.push_back(make_pair(prob_triplets_subgraph(*i, embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters), false));
+		}
+
+		sort(threshold_dev.begin(), threshold_dev.end());
+
+		double threshold;
+		double vari_mark = 0;
+		int tot = 0;
+		int hit = 0;
+		for (auto i = threshold_dev.begin(); i != threshold_dev.end(); ++i)
+		{
+			if (i->second == false)
+				++hit;
+			++tot;
+			if (vari_mark <= 2 * hit - tot + data_model.data_dev_true.size())
+			{
+				vari_mark = 2 * hit - tot + data_model.data_dev_true.size();
+				threshold = i->first;
+			}
+		}
+		if (prob_triplets_subgraph(triplet, embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters) > threshold)
+			++real_hit, ++lreal_hit;
+
+		if (prob_triplets_subgraph(triplet_f, embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters) <= threshold)
+			++real_hit, ++lreal_hit;
+	}
+
+	void print_final_test_triplet_classification_subgraph()
+	{
+		int tot = data_model.data_test_true.size();
+		std::cout << epos << "\t Accuracy = "
+			<< real_hit / (2 * tot);
+		best_triplet_result = max(
+			best_triplet_result,
+			real_hit / (2 * tot));
+		std::cout << ", Best = " << best_triplet_result << endl;
+
+		logging.record() << epos << "\t Accuracy = "
+			<< real_hit / (2 * tot)
+			<< ", Best = " << best_triplet_result;
+
+		std::cout.flush();
+	}
 	void test_link_prediction(int hit_rank = 10, const int part = 0)
 	{
-		double mean = 0;
-		double hits = 0;
-		double fmean = 0;
-		double fhits = 0;
-		double rmrr = 0;
-		double fmrr = 0;
-		double total = data_model.data_test_true.size();
+		//parameter initialization
+		mean = 0;
+		hits = 0;
+		fmean = 0;
+		fhits = 0;
+		rmrr = 0;
+		fmrr = 0;
+		total = data_model.data_test_true.size();
+		rrank.resize(data_model.data_test_true.size());
+		frank.resize(data_model.data_test_true.size());
 
 		double arr_mean[20] = { 0 };
 		double arr_total[5] = { 0 };
@@ -230,6 +725,7 @@ public:
 
 		int cnt = 0;
 
+		cout << "Testing query-test-set.." << endl;
 		boost::progress_display cons_bar(data_model.data_test_true.size() / 100);
 
 #pragma omp parallel for
@@ -293,6 +789,9 @@ public:
 				fmean += frmean;
 				rmrr += 1.0 / (rmean + 1);
 				fmrr += 1.0 / (frmean + 1);
+				int idx = distance(data_model.data_test_true.begin(), i);
+				rrank[idx] = rmean;
+				frank[idx] = frmean;
 
 				if (rmean < hit_rank)
 					++hits;
@@ -309,29 +808,97 @@ public:
 		}
 		logging.record();
 
-		best_link_mean = min(best_link_mean, mean / total);
-		best_link_hitatten = max(best_link_hitatten, hits / total);
-		best_link_fmean = min(best_link_fmean, fmean / total);
-		best_link_fhitatten = max(best_link_fhitatten, fhits / total);
-
-		std::cout << "Raw.BestMEANS = " << best_link_mean << endl;
-		std::cout << "Raw.BestMRR = " << rmrr / total << endl;
-		std::cout << "Raw.BestHITS = " << best_link_hitatten << endl;
-		logging.record() << "Raw.BestMEANS = " << best_link_mean;
-		logging.record() << "Raw.BestMRR = " << rmrr / total;
-		logging.record() << "Raw.BestHITS = " << best_link_hitatten;
-
-		std::cout << "Filter.BestMEANS = " << best_link_fmean << endl;
-		std::cout << "Filter.BestMRR= " << fmrr / total << endl;
-		std::cout << "Filter.BestHITS = " << best_link_fhitatten << endl;
-		logging.record() << "Filter.BestMEANS = " << best_link_fmean;
-		logging.record() << "Filter.BestMRR= " << fmrr / total;
-		logging.record() << "Filter.BestHITS = " << best_link_fhitatten;
-
-		std::cout.flush();
+		print_final_test_link_prediction_subgraph();
 	}
 
-public:
+	void getNegativeTriplet(pair<pair<int, int>, int>& triplet, int i)
+	{
+		srand((unsigned int)time(0));
+		int selectHead = rand() % 2;
+
+		set<int> A;
+		for (auto t : subgraph[i]) {
+			A.insert(t.first.first);
+			A.insert(t.first.second);
+		}
+		for (auto v : A) {
+			if (selectHead) triplet.first.first = v;
+			else triplet.first.second = v;
+			bool uniq = true;
+			for (auto t : subgraph[i]) {
+				if (triplet == t) {
+					uniq = false;
+					break;
+				}
+			}
+			if (!uniq) continue;
+			if (triplet == data_model.data_test_true[i]) continue;
+			if (triplet.first.first == triplet.first.second) continue;
+			break;
+		}
+	}
+
+	void test_link_prediction_subgraph(int idx, int hit_rank = 10, const int part = 0)
+	{
+		pair<pair<int, int>, int> t = data_model.data_test_true[idx];
+
+		int frmean = 0;
+		int rmean = 0;
+		double score_i = prob_triplets_subgraph(t, embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters);
+
+		if (task_type == LinkPredictionRelation || part == 2)
+		{
+			for (auto j = 0; j != data_model.set_relation.size(); ++j)
+			{
+				t.second = j;
+
+				if (score_i >= prob_triplets_subgraph(t, embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters))
+					continue;
+
+				++rmean;
+
+				if (data_model.check_data_all.find(t) == data_model.check_data_all.end())
+					++frmean;
+			}
+		}
+		else
+		{
+			for (auto j = 0; j != data_model.set_entity.size(); ++j)
+			{
+				if (task_type == LinkPredictionHead || part == 1)
+					t.first.first = j;
+				else
+					t.first.second = j;
+
+				if (score_i >= prob_triplets_subgraph(t, embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters))
+					continue;
+
+				++rmean;
+
+				if (data_model.check_data_all.find(t) == data_model.check_data_all.end())
+				{
+					++frmean;
+					//if (frmean > hit_rank)
+					//	break;
+				}
+			}
+		}
+#pragma omp critical
+		{
+			mean += rmean;
+			fmean += frmean;
+			rmrr += 1.0 / (rmean + 1);
+			fmrr += 1.0 / (frmean + 1);
+			rrank[idx] = rmean;
+			frank[idx] = frmean;
+
+			if (rmean < hit_rank)
+				++hits;
+			if (frmean < hit_rank)
+				++fhits;
+		}
+	}
+
 	void test_link_prediction_zeroshot(int hit_rank = 10, const int part = 0)
 	{
 		reset();
@@ -484,7 +1051,51 @@ public:
 		logging.record() << "Filter.BestMEANS = " << best_link_fmean;
 		logging.record() << "Filter.BestHITS = " << best_link_fhitatten;
 	}
+	
+	void print_final_test_link_prediction_subgraph()
+	{
+		best_link_mean = min(best_link_mean, mean / total);
+		best_link_hitatten = max(best_link_hitatten, hits / total);
+		best_link_deviation = getDeviation(rrank, best_link_mean);
+		best_link_fmean = min(best_link_fmean, fmean / total);
+		best_link_fhitatten = max(best_link_fhitatten, fhits / total);
+		best_link_fdeviation = getDeviation(frank, best_link_fmean);
 
+
+		std::cout << "Raw.BestMEANS = " << best_link_mean << endl;
+		std::cout << "Raw.BestMRR = " << rmrr / total << endl;
+		std::cout << "Raw.BestHARMONICMEANS = " << total / rmrr << endl;
+		std::cout << "Raw.BestHITS = " << best_link_hitatten << endl;
+		std::cout << "Raw.BestDEVIATIONS = " << best_link_deviation << endl;
+		logging.record() << "Raw.BestMEANS = " << best_link_mean;
+		logging.record() << "Raw.BestMRR = " << total / rmrr;
+		logging.record() << "Raw.BestHITS = " << best_link_hitatten;
+		logging.record() << "Raw.BestDEVIATIONS = " << best_link_deviation;
+
+		std::cout << "Filter.BestMEANS = " << best_link_fmean << endl;
+		std::cout << "Filter.BestMRR= " << fmrr / total << endl;
+		std::cout << "Filter.BestHARMONICMEANS = " << total / fmrr << endl;
+		std::cout << "Filter.BestHITS = " << best_link_fhitatten << endl;
+		std::cout << "Filter.BestDEVIATIONS = " << best_link_fdeviation << endl;
+		logging.record() << "Filter.BestMEANS = " << best_link_fmean;
+		logging.record() << "Filter.BestMRR= " << total / fmrr;
+		logging.record() << "Filter.BestHITS = " << best_link_fhitatten;
+		logging.record() << "Filter.BestDEVIATIONS = " << best_link_fdeviation;
+
+		std::cout.flush();
+	}
+public:
+	double getDeviation(vector<double> rank, double mean)
+	{
+		double sum = 0;
+		for (int i = 0; i<rank.size(); i++)
+		{
+			sum += pow((rank[i] - mean), 2);
+		}
+
+		return sqrt(sum / (rank.size() - 1));
+	}
+public:
 	virtual void draw(const string& filename, const int radius, const int id_relation) const
 	{
 		return;
@@ -541,10 +1152,12 @@ public:
 	virtual vec entity_representation(int entity_id) const
 	{
 		cout << "BAD";
+		return NULL;
 	}
 
 	virtual vec relation_representation(int relation_id) const
 	{
 		cout << "BAD";
+		return NULL;
 	}
-};
+}; 
