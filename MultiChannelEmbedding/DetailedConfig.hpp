@@ -2,6 +2,7 @@
 #include "Import.hpp"
 #include "ModelConfig.hpp"
 
+#define LINUX_LOAD
 #ifdef HDD_LOAD
 const Dataset FB15K("FB15K", "D:\\Data\\Knowledge Embedding\\FB15K\\", "train.txt", "dev.txt", "test.txt", true);
 const Dataset FB13("FB13", "D:\\Data\\Knowledge Embedding\\FB13\\", "train.txt", "dev.txt", "test.txt", false);
@@ -43,10 +44,10 @@ const string semantic_tfile_FB15KZS = "C:\\Data\\Knowledge Embedding\\FB15KZS\\d
 #endif
 
 #ifdef LINUX_LOAD
-const Dataset FB15K("FB15K", "/home/bookman/data/Knowledge Embedding/FB15K/", "train.txt", "dev.txt", "test.txt", true);
+const Dataset FB15K("FB15K", "/home/rudvlf0413/kge/What-If-QA/FB15K/", "train.txt", "dev.txt", "test.txt", true);
 const Dataset FB13("FB13", "/home/bookman/data/Knowledge Embedding/FB13/", "train.txt", "dev.txt", "test.txt", false);
 const Dataset WN11("WN11", "/home/bookman/data/Knowledge Embedding/WN11/", "train.txt", "dev.txt", "test.txt", false);
-const Dataset WN18("WN18", "/home/bookman/data/Knowledge Embedding/WN18/", "train.txt", "dev.txt", "test.txt", true);
+const Dataset WN18("WN18", "/home/rudvlf0413/kge/What-If-QA/WN18/", "train.txt", "dev.txt", "test.txt", true);
 const Dataset Wordnet("Wordnet", "/home/bookman/data/Knowledge Embedding/Wordnet/", "train.txt", "dev.txt", "test.txt", false);
 const Dataset Freebase("Freebase", "/home/bookman/data/Knowledge Embedding/Freebase/", "train.txt", "dev.txt", "test.txt", false);
 const string report_path = "/home/bookman/Report/";
