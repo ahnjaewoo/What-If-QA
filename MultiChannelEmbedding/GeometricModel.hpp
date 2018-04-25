@@ -178,7 +178,7 @@ public:
 
 	}
 
-	virtual void train_triplet_subgraph_WG(const pair<pair<int, int>, int>& triplet, vector<vec>& embedding_entity_s, vector<vec>& embedding_relation_s,
+	virtual void train_triplet_subgraph_BM(const pair<pair<int, int>, int>& triplet, vector<vec>& embedding_entity_s, vector<vec>& embedding_relation_s,
 		vector<vector<vec>>& embedding_clusters_s, vector<vec>& weights_clusters_s, vector<int>& size_clusters_s,
 		vector<pair<pair<int, int>, int>> subgraph, vector<int> cut_pos, vector<int> cut_tot, vector<int> cut_tot_rel)
 
@@ -187,47 +187,12 @@ public:
 		vec& tail = embedding_entity_s[triplet.first.second];
 		vec& relation = embedding_relation_s[triplet.second];
 
-		pair<pair<int, int>, int> triplet_f;
-		data_model.sample_false_triplet(triplet, triplet_f);
-
-		if (prob_triplets_subgraph(triplet, embedding_entity_s, embedding_relation_s, embedding_clusters_s, weights_clusters_s, size_clusters_s) - prob_triplets_subgraph(triplet_f, embedding_entity_s, embedding_relation_s, embedding_clusters_s, weights_clusters_s, size_clusters_s) > training_threshold)
+		if (prob_triplets_subgraph(triplet, embedding_entity_s, embedding_relation_s, embedding_clusters_s, weights_clusters_s, size_clusters_s) - prob_triplets(triplet) < 0.001)
 			return;
 
-		int count_relation_subgraph = 0;
-		int count_relation_f_subgraph = 0;
-		for (auto i = 0; i < subgraph.size(); i++)
-		{
-			if (subgraph[i].second == triplet.second)
-			{
-				count_relation_subgraph++;
-			}
-			if (subgraph[i].second == triplet_f.second) {
-				count_relation_f_subgraph++;
-			}
-		}
-
-		vec& head_f = embedding_entity_s[triplet_f.first.first];
-		vec& tail_f = embedding_entity_s[triplet_f.first.second];
-		vec& relation_f = embedding_relation_s[triplet_f.second];
-
-		if (log_base < 10)
-		{
-			head -= alpha * sign(head + relation - tail) * (log_base - 1 + cut_pos[triplet.first.first] / cut_tot[triplet.first.first]) / (double)log_base;
-			tail += alpha * sign(head + relation - tail) * (log_base - 1 + cut_pos[triplet.first.second] / cut_tot[triplet.first.second]) / (double)log_base;
-			relation -= alpha * sign(head + relation - tail) * (log_base - 1 + count_relation_subgraph / cut_tot_rel[triplet.second]) / (double)log_base;
-			head_f += alpha * sign(head_f + relation_f - tail_f) * (log_base - 1 + cut_pos[triplet_f.first.first] / cut_tot[triplet_f.first.first]) / (double)log_base;
-			tail_f -= alpha * sign(head_f + relation_f - tail_f) * (log_base - 1 + cut_pos[triplet_f.first.second] / cut_tot[triplet_f.first.second]) / (double)log_base;
-			relation_f += alpha * sign(head_f + relation_f - tail_f) * (log_base - 1 + count_relation_f_subgraph / cut_tot_rel[triplet_f.second]) / (double)log_base;
-		}
-		else
-		{
-			head -= alpha * sign(head + relation - tail) / (1 + log(1 + cut_tot[triplet.first.first] - cut_pos[triplet.first.first]) / log(log_base));
-			tail += alpha * sign(head + relation - tail) / (1 + log(1 + cut_tot[triplet.first.second] - cut_pos[triplet.first.second]) / log(log_base));
-			relation -= alpha * sign(head + relation - tail) / (1 + log(1 + cut_tot_rel[triplet.second] - count_relation_subgraph) / log(log_base));
-			head_f += alpha * sign(head_f + relation_f - tail_f) / (1 + log(1 + cut_tot[triplet_f.first.first] - cut_pos[triplet_f.first.first]) / log(log_base));
-			tail_f -= alpha * sign(head_f + relation_f - tail_f) / (1 + log(1 + cut_tot[triplet_f.first.second] - cut_pos[triplet_f.first.second]) / log(log_base));
-			relation_f += alpha * sign(head_f + relation_f - tail_f) / (1 + log(1 + cut_tot_rel[triplet_f.second] - count_relation_f_subgraph) / log(log_base));
-		}
+		head -= alpha * sign(head + relation - tail);
+		tail += alpha * sign(head + relation - tail);
+		relation -= alpha * sign(head + relation - tail);
 
 		if (norm_L2(head) > 1.0)
 			head = normalise(head);
@@ -237,13 +202,6 @@ public:
 
 		if (norm_L2(relation) > 1.0)
 			relation = normalise(relation);
-
-		if (norm_L2(head_f) > 1.0)
-			head_f = normalise(head_f);
-
-		if (norm_L2(tail_f) > 1.0)
-			tail_f = normalise(tail_f);
-
 	}
 
 	virtual void relation_reg(int i, int j, double factor)
@@ -556,7 +514,7 @@ public:
 			relation_f = normalise(relation_f);
 	}
 
-	virtual void train_cluster_once_subgraph_WG(
+	virtual void train_cluster_once_subgraph_BM(
 		const pair<pair<int, int>, int>& triplet,
 		const pair<pair<int, int>, int>& triplet_f,
 		int cluster, double prob_true, double prob_false, double factor,
@@ -568,67 +526,21 @@ public:
 		vec& head = embedding_entity_s[triplet.first.first];
 		vec& tail = embedding_entity_s[triplet.first.second];
 		vec& relation = embedding_clusters_s[triplet.second][cluster];
-		vec& head_f = embedding_entity_s[triplet_f.first.first];
-		vec& tail_f = embedding_entity_s[triplet_f.first.second];
-		vec& relation_f = embedding_clusters_s[triplet_f.second][cluster];
 
 		double prob_local_true = exp(-sum(abs(head + relation - tail)));
-		double prob_local_false = exp(-sum(abs(head_f + relation_f - tail_f)));
 
 		weights_clusters_s[triplet.second][cluster] +=
 			factor / prob_true * prob_local_true * sign(weights_clusters_s[triplet.second][cluster]);
-		weights_clusters_s[triplet_f.second][cluster] -=
-			factor / prob_false * prob_local_false  * sign(weights_clusters_s[triplet_f.second][cluster]);
 
-		int count_relation_subgraph = 0;
-		int count_relation_f_subgraph = 0;
-		for (auto i = 0; i < subgraph.size(); i++)
-		{
-			if (subgraph[i].second == triplet.second)
-			{
-				count_relation_subgraph++;
-			}
-			if (subgraph[i].second == triplet_f.second) {
-				count_relation_f_subgraph++;
-			}
-		}
-
-		if (log_base < 10)
-		{
-			head -= factor * sign(head + relation - tail) * prob_local_true / prob_true
-				* fabs(weights_clusters_s[triplet.second][cluster]) * (log_base - 1 + cut_pos[triplet.first.first] / cut_tot[triplet.first.first]) / (double)log_base;
-			tail += factor * sign(head + relation - tail) * prob_local_true / prob_true
-				* fabs(weights_clusters_s[triplet.second][cluster]) * (log_base - 1 + cut_pos[triplet.first.second] / cut_tot[triplet.first.second]) / (double)log_base;
-			relation -= factor * sign(head + relation - tail)
-				* prob_local_true / prob_true * fabs(weights_clusters[triplet.second][cluster]) * (log_base - 1 + count_relation_subgraph / cut_tot_rel[triplet.second]) / (double)log_base;
-			head_f += factor * sign(head_f + relation_f - tail_f) * prob_local_false / prob_false
-				* fabs(weights_clusters_s[triplet.second][cluster]) * (log_base - 1 + cut_pos[triplet_f.first.first] / cut_tot[triplet_f.first.first]) / (double)log_base;
-			tail_f -= factor * sign(head_f + relation_f - tail_f) * prob_local_false / prob_false
-				* fabs(weights_clusters_s[triplet.second][cluster]) * (log_base - 1 + cut_pos[triplet_f.first.second] / cut_tot[triplet_f.first.second]) / (double)log_base;
-			relation_f += factor * sign(head_f + relation_f - tail_f)
-				* prob_local_true / prob_true * fabs(weights_clusters[triplet.second][cluster]) * (log_base - 1 + count_relation_f_subgraph / cut_tot_rel[triplet_f.second]) / (double)log_base;
-		}
-		else
-		{
-			head -= factor * sign(head + relation - tail) * prob_local_true / prob_true
-				* fabs(weights_clusters_s[triplet.second][cluster]) / (1 + log(1 + cut_tot[triplet.first.first] - cut_pos[triplet.first.first]) / log(log_base));
-			tail += factor * sign(head + relation - tail) * prob_local_true / prob_true
-				* fabs(weights_clusters_s[triplet.second][cluster]) / (1 + log(1 + cut_tot[triplet.first.second] - cut_pos[triplet.first.second]) / log(log_base));
-			relation -= factor * sign(head + relation - tail)
-				* prob_local_true / prob_true * fabs(weights_clusters[triplet.second][cluster]) / (1 + log(1 + cut_tot_rel[triplet.second] - count_relation_subgraph) / log(log_base));
-			head_f += factor * sign(head_f + relation_f - tail_f) * prob_local_false / prob_false
-				* fabs(weights_clusters_s[triplet.second][cluster]) / (1 + log(1 + cut_tot[triplet_f.first.first] - cut_pos[triplet_f.first.first]) / log(log_base));
-			tail_f -= factor * sign(head_f + relation_f - tail_f) * prob_local_false / prob_false
-				* fabs(weights_clusters_s[triplet.second][cluster]) / (1 + log(1 + cut_tot[triplet_f.first.second] - cut_pos[triplet_f.first.second]) / log(log_base));
-			relation_f += factor * sign(head_f + relation_f - tail_f)
-				* prob_local_true / prob_true * fabs(weights_clusters[triplet.second][cluster]) / (1 + log(1 + cut_tot_rel[triplet_f.second] - count_relation_f_subgraph) / log(log_base));
-		}
+		head -= factor * sign(head + relation - tail)
+			* prob_local_true / prob_true * fabs(weights_clusters[triplet.second][cluster]);
+		tail += factor * sign(head + relation - tail)
+			* prob_local_true / prob_true * fabs(weights_clusters[triplet.second][cluster]);
+		relation -= factor * sign(head + relation - tail)
+			* prob_local_true / prob_true * fabs(weights_clusters[triplet.second][cluster]);
 
 		if (norm_L2(relation) > 1.0)
 			relation = normalise(relation);
-
-		if (norm_L2(relation_f) > 1.0)
-			relation_f = normalise(relation_f);
 	}
 
 	virtual void train_triplet(const pair<pair<int, int>, int>& triplet)
@@ -770,7 +682,7 @@ public:
 			weights_clusters_s[triplet.second] = normalise(weights_clusters_s[triplet.second]);
 	}
 
-	virtual void train_triplet_subgraph_WG(const pair<pair<int, int>, int>& triplet, vector<vec>& embedding_entity_s, vector<vec>& embedding_relation_s,
+	virtual void train_triplet_subgraph_BM(const pair<pair<int, int>, int>& triplet, vector<vec>& embedding_entity_s, vector<vec>& embedding_relation_s,
 		vector<vector<vec>>& embedding_clusters_s, vector<vec>& weights_clusters_s, vector<int>& size_clusters_s,
 		vector<pair<pair<int, int>, int>> subgraph, vector<int> cut_pos, vector<int> cut_tot, vector<int> cut_tot_rel)
 	{
@@ -780,18 +692,19 @@ public:
 		if (!head.is_finite())
 			cout << "d";
 
+		double prob_true = training_prob_triplets_subgraph(triplet, size_clusters_s, embedding_entity_s, embedding_clusters_s, weights_clusters_s);
+		double prob_origin = training_prob_triplets_subgraph(triplet, size_clusters, embedding_entity, embedding_clusters, weights_clusters);
+
+		if (prob_true / prob_origin < exp(0.001))
+			return;
+
 		pair<pair<int, int>, int> triplet_f = triplet;
 		data_model.sample_false_triplet(triplet, triplet_f);
-
-		double prob_true = training_prob_triplets_subgraph(triplet, size_clusters_s, embedding_entity_s, embedding_clusters_s, weights_clusters_s);
 		double prob_false = training_prob_triplets_subgraph(triplet_f, size_clusters_s, embedding_entity_s, embedding_clusters_s, weights_clusters_s);
-
-		if (prob_true / prob_false > exp(training_threshold))
-			return;
 
 		for (int c = 0; c<size_clusters_s[triplet.second]; ++c)
 		{
-			train_cluster_once_subgraph_WG(triplet, triplet_f, c, prob_true, prob_false, multify * alpha, size_clusters_s, embedding_entity_s, embedding_clusters_s, weights_clusters_s, subgraph, cut_pos, cut_tot, cut_tot_rel);
+			train_cluster_once_subgraph_BM(triplet, triplet_f, c, prob_true, prob_false, multify * alpha, size_clusters_s, embedding_entity_s, embedding_clusters_s, weights_clusters_s, subgraph, cut_pos, cut_tot, cut_tot_rel);
 		}
 
 		double prob_new_component = CRP_factor * exp(-sum(abs(head - tail)));
@@ -808,20 +721,11 @@ public:
 			}
 		}
 
-		vec& head_f = embedding_entity_s[triplet_f.first.first];
-		vec& tail_f = embedding_entity_s[triplet_f.first.second];
-
 		if (norm_L2(head) > 1.0)
 			head = normalise(head);
 
 		if (norm_L2(tail) > 1.0)
 			tail = normalise(tail);
-
-		if (norm_L2(head_f) > 1.0)
-			head_f = normalise(head_f);
-
-		if (norm_L2(tail_f) > 1.0)
-			tail_f = normalise(tail_f);
 
 		if (be_weight_normalized)
 			weights_clusters_s[triplet.second] = normalise(weights_clusters_s[triplet.second]);

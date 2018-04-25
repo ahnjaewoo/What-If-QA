@@ -105,7 +105,7 @@ public:
 	virtual void train_triplet_subgraph(const pair<pair<int, int>, int>& triplet, vector<vec>& embedding_entity_s, vector<vec>& embedding_relation_s,
 		vector<vector<vec>>& embedding_clusters_s, vector<vec>& weights_clusters_s, vector<int>& size_clusters_s,
 		vector<pair<pair<int, int>, int>> subgraph) = 0;
-	virtual void train_triplet_subgraph_WG(const pair<pair<int, int>, int>& triplet, vector<vec>& embedding_entity_s, vector<vec>& embedding_relation_s,
+	virtual void train_triplet_subgraph_BM(const pair<pair<int, int>, int>& triplet, vector<vec>& embedding_entity_s, vector<vec>& embedding_relation_s,
 		vector<vector<vec>>& embedding_clusters_s, vector<vec>& weights_clusters_s, vector<int>& size_clusters_s,
 		vector<pair<pair<int, int>, int>> subgraph, vector<int> cut_pos, vector<int> cut_tot, vector<int> cut_tot_rel) = 0;
 
@@ -177,14 +177,18 @@ public:
 
 				//deep copy
 				deep_copy_for_subgraph(embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters);
-
 				//train
 				for (auto tot = 0; tot < total_epos; tot++)
 				{
 #pragma omp parallel for
 					for (auto j = subgraph[i].begin(); j != subgraph[i].end(); j++)
 					{
-						train_triplet_subgraph_WG(*j, embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters, subgraph[i], cut_pos_subgraph[i], cut_tot_subgraph, cut_tot_rel_subgraph);
+						train_triplet_subgraph(*j, embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters, subgraph[i]);
+					}
+#pragma omp parallel for
+					for (auto j = dev_subgraph[i].begin(); j != dev_subgraph[i].end(); j++)
+					{
+						train_triplet_subgraph_BM(*j, embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters, subgraph[i], cut_pos_subgraph[i], cut_tot_subgraph, cut_tot_rel_subgraph);
 					}
 				}
 
@@ -348,13 +352,22 @@ public:
 					subgraph[i].push_back(data_model.data_condition[i][j]);	//containing conditional part C
 				}
 
-				if (gradient_mode == 2 || gradient_mode == 3) {
-					for (auto j = data_model.data_dev_true.begin(); j != data_model.data_dev_true.end(); j++) {
-						if (A.find(data_model.entity_id_to_name[(*j).first.first]) != A.end() && A.find(data_model.entity_id_to_name[(*j).first.second]) != A.end())
-							dev_subgraph[i].push_back(*j);
+				//constructing cutting edge subgraph
+				if (gradient_mode == 1) {
+					set<string> diff;
+					set_difference(data_model.set_entity.begin(), data_model.set_entity.end(), A.begin(), A.end(), inserter(diff, diff.begin()));
+					for (auto t : data_model.data_train)
+					{
+						int e1 = t.first.first;
+						int e2 = t.first.second;
+						string st1 = data_model.entity_id_to_name[e1];
+						string st2 = data_model.entity_id_to_name[e2];
+						if (A.find(st1) != A.end() && diff.find(st2) != diff.end())
+							dev_subgraph[i].push_back(t);
+						if (A.find(st2) != A.end() && diff.find(st1) != diff.end())
+							dev_subgraph[i].push_back(t);
 					}
 				}
-
 			}
 		}
 		else if (method == 0)
@@ -403,13 +416,22 @@ public:
 					subgraph[i].push_back(data_model.data_condition[i][j]);	//containing conditional part C
 				}
 
-				if (gradient_mode == 2 || gradient_mode == 3) {
-					for (auto j = data_model.data_dev_true.begin(); j != data_model.data_dev_true.end(); j++) {
-						if (A.find(data_model.entity_id_to_name[(*j).first.first]) != A.end() && A.find(data_model.entity_id_to_name[(*j).first.second]) != A.end())
-							dev_subgraph[i].push_back(*j);
-					}
-				}
-
+				//constructing cutting edge subgraph
+                                if (gradient_mode == 1) {
+                                        set<string> diff;
+                                        set_difference(data_model.set_entity.begin(), data_model.set_entity.end(), A.begin(), A.end(), inserter(diff, diff.begin()));
+                                        for (auto t : data_model.data_train)
+                                        {
+                                                int e1 = t.first.first;
+                                                int e2 = t.first.second;
+                                                string st1 = data_model.entity_id_to_name[e1];
+                                                string st2 = data_model.entity_id_to_name[e2];
+                                                if (A.find(st1) != A.end() && diff.find(st2) != diff.end())
+							dev_subgraph[i].push_back(t);
+                                                if (A.find(st2) != A.end() && diff.find(st1) != diff.end())
+							dev_subgraph[i].push_back(t);
+                                        }
+                                }
 			}
 		}
 		else

@@ -13,7 +13,7 @@ int main(int argc, char* argv[])
 
 	model = new TransE(WN18_, LinkPredictionTail, report_path, 20, 0.01, 1);
 	model->run(50);
-	model->test();
+	model->test(true, 1);
 	delete model;
 
 	return 0;
