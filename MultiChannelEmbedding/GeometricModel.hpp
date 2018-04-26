@@ -14,13 +14,14 @@ protected:
 	vector<vec>	embedding_relation;
 
 public:
-	const int	dim;
+	const int			dim;
 	const double	alpha;
 	const double	training_threshold;
 
 public:
-	double			log_base;
-	int				multify;
+	int					multify;
+	double			beta;
+	double			delta;
 
 public:
 	TransE(const Dataset& dataset,
@@ -29,7 +30,8 @@ public:
 		int dim,
 		double alpha,
 		double training_threshold,
-		double Log_base = 10.0,
+		double Beta = 1.0,
+		double Delta = 1.0,
 		int Multify = 2)
 		:Model(dataset, task_type, logging_base_path),
 		dim(dim), alpha(alpha), training_threshold(training_threshold)
@@ -39,8 +41,11 @@ public:
 		logging.record() << "\t[Learning Rate]\t" << alpha;
 		logging.record() << "\t[Training Threshold]\t" << training_threshold;
 
-		log_base = Log_base;
+		beta = Beta;
+		delta = Delta;
 		multify = Multify;
+
+		cout << "Beta: " << beta << ", Delta: " << delta << endl;
 
 		embedding_entity.resize(count_entity());
 		for_each(embedding_entity.begin(), embedding_entity.end(), [=](vec& elem) {elem = (2 * randu(dim, 1) - 1)*sqrt(6.0 / dim); });
@@ -187,7 +192,7 @@ public:
 		vec& tail = embedding_entity_s[triplet.first.second];
 		vec& relation = embedding_relation_s[triplet.second];
 
-		if (prob_triplets_subgraph(triplet, embedding_entity_s, embedding_relation_s, embedding_clusters_s, weights_clusters_s, size_clusters_s) - prob_triplets(triplet) < 0.001)
+		if (prob_triplets_subgraph(triplet, embedding_entity_s, embedding_relation_s, embedding_clusters_s, weights_clusters_s, size_clusters_s) - prob_triplets(triplet) < delta)
 			return;
 
 		head -= alpha * sign(head + relation - tail);
@@ -273,8 +278,9 @@ protected:
 	double			CRP_factor;
 
 public:
-	double			log_base;
-	int				multify;
+	int					multify;
+	double			beta;
+	double			delta;
 
 public:
 	TransG(
@@ -286,7 +292,8 @@ public:
 		double training_threshold,
 		int n_cluster,
 		double CRP_factor,
-		double Log_base = 10.0,
+		double Beta = 1.0,
+		double Delta = 1.0,
 		int Multify = 2,
 		int step_before = 10,
 		bool sot = false,
@@ -303,7 +310,8 @@ public:
 		logging.record() << "\t[Cluster Counts]\t" << n_cluster;
 		logging.record() << "\t[CRP Factor]\t" << CRP_factor;
 
-		log_base = Log_base;
+		beta = Beta;
+		delta = Delta;
 		multify = Multify;
 
 		if (be_weight_normalized)
@@ -694,7 +702,7 @@ public:
 		double prob_true = training_prob_triplets_subgraph(triplet, size_clusters_s, embedding_entity_s, embedding_clusters_s, weights_clusters_s);
 		double prob_origin = training_prob_triplets_subgraph(triplet, size_clusters, embedding_entity, embedding_clusters, weights_clusters);
 
-		if (prob_true / prob_origin < exp(0.001))
+		if (prob_true / prob_origin < exp(delta))
 			return;
 
 		pair<pair<int, int>, int> triplet_f = triplet;
