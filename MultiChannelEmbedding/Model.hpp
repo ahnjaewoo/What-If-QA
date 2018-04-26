@@ -474,8 +474,8 @@ public:
 		}
 		else {
 
-			clock_t before, after;
-			before = clock();
+			struct timeval after, before;
+                        gettimeofday(&before, NULL);
 
 			//3 - 2. 그리고 밑에 있는 test task 수행
 			//test_link_prediction per test set
@@ -486,8 +486,8 @@ public:
 			else
 				test_triplet_classification();
 
-			after = clock();
-			cout << "testing non subgraph test_data time :  " << (double)(after - before) / CLOCKS_PER_SEC << "seconds" << endl;
+			gettimeofday(&after, NULL);
+			cout << "testing non subgraph test_data time :  " << after.tv_sec + after.tv_usec/1000000.0 - before.tv_sec - before.tv_usec/1000000.0 << "seconds" << endl;
 		}
 	}
 

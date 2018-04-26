@@ -45,8 +45,6 @@ public:
 		delta = Delta;
 		multify = Multify;
 
-		cout << "Beta: " << beta << ", Delta: " << delta << endl;
-
 		embedding_entity.resize(count_entity());
 		for_each(embedding_entity.begin(), embedding_entity.end(), [=](vec& elem) {elem = (2 * randu(dim, 1) - 1)*sqrt(6.0 / dim); });
 
