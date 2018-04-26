@@ -5,9 +5,8 @@
 #include <boost/progress.hpp>
 #include <cmath>
 #include <cstdlib>
-#include <ctime>
 #include <fstream>
-#include <time.h>
+#include <sys/time.h>
 
 using namespace std;
 using namespace arma;
@@ -453,8 +452,8 @@ public:
 
 		if (subgraph_task) {
 
-			clock_t before, after;
-			before = clock();
+			struct timeval after, before;
+			gettimeofday(&before, NULL);
 
 			//0. initialization
 			initialize_subgraph(mode);
@@ -470,8 +469,8 @@ public:
 			//test_link_prediction per test set
 			train_and_test_subgraph(subgraph_epos);
 
-			after = clock();
-			cout << "testing subgraph test_data time :  " << (double)(after - before) / CLOCKS_PER_SEC << "seconds" << endl;
+			gettimeofday(&after, NULL);
+			cout << "testing subgraph test_data time : : " << after.tv_sec + after.tv_usec/1000000.0 - before.tv_sec - before.tv_usec/1000000.0 << "seconds" << endl;
 		}
 		else {
 
