@@ -548,8 +548,7 @@ public:
 
 	virtual void train_cluster_once_subgraph_BM(
 		const pair<pair<int, int>, int>& triplet,
-		const pair<pair<int, int>, int>& triplet_f,
-		int cluster, double prob_true, double prob_false, double factor,
+		int cluster, double prob_true, double factor,
 		vector<int>& size_clusters_s, vector<vec>& embedding_entity_s,
 		vector<vector<vec>>& embedding_clusters_s, vector<vec>& weights_clusters_s,
 		vector<pair<pair<int, int>, int>> subgraph, vector<int> cut_pos)
@@ -729,14 +728,9 @@ public:
 		if (prob_true / prob_origin < exp(delta * delta_unit))
 			return;
 
-
-		pair<pair<int, int>, int> triplet_f = triplet;
-		data_model.sample_false_triplet(triplet, triplet_f);
-		double prob_false = training_prob_triplets_subgraph(triplet_f, size_clusters_s, embedding_entity_s, embedding_clusters_s, weights_clusters_s);
-
 		for (int c = 0; c<size_clusters_s[triplet.second]; ++c)
 		{
-			train_cluster_once_subgraph_BM(triplet, triplet_f, c, prob_true, prob_false, multify * alpha, size_clusters_s, embedding_entity_s, embedding_clusters_s, weights_clusters_s, subgraph, cut_pos);
+			train_cluster_once_subgraph_BM(triplet, c, prob_true, multify * alpha, size_clusters_s, embedding_entity_s, embedding_clusters_s, weights_clusters_s, subgraph, cut_pos);
 		}
 
 		double prob_new_component = CRP_factor * exp(-sum(abs(head - tail)));
