@@ -22,6 +22,7 @@ public:
 	int					multify;
 	double			beta;
 	double			delta;
+	double			delta_unit;
 
 public:
 	TransE(const Dataset& dataset,
@@ -43,6 +44,7 @@ public:
 
 		beta = Beta;
 		delta = Delta;
+		delta_unit = 0.0;
 		multify = Multify;
 
 		embedding_entity.resize(count_entity());
@@ -98,6 +100,28 @@ public:
 	{
 		embedding_entity_s = embedding_entity;
 		embedding_relation_s = embedding_relation;
+	}
+
+	virtual void get_delta_unit(vector<vec>& embedding_relation_s, vector<vector<vec>>& embedding_clusters_s, vector<int>& size_clusters_s)
+	{
+		embedding_relation_s = embedding_relation;
+
+		for (int j = 0; j < dim; j++)
+		{
+			delta_unit += pow(embedding_relation_s[0](j), 2.0);
+		}
+
+		for (int i = 1; i < embedding_relation_s.size(); i++)
+		{
+			double lth = 0;
+			for (int j = 0; j < dim; j++)
+			{
+				lth += pow(embedding_relation_s[i](j), 2.0);
+			}
+
+			if (delta_unit > lth) delta_unit = lth;
+		}
+		delta_unit = sqrt(delta_unit);
 	}
 
 	virtual void train_triplet(const pair<pair<int, int>, int>& triplet)
@@ -190,12 +214,12 @@ public:
 		vec& tail = embedding_entity_s[triplet.first.second];
 		vec& relation = embedding_relation_s[triplet.second];
 
-		if (prob_triplets_subgraph(triplet, embedding_entity_s, embedding_relation_s, embedding_clusters_s, weights_clusters_s, size_clusters_s) - prob_triplets(triplet) < delta)
+		if (prob_triplets_subgraph(triplet, embedding_entity_s, embedding_relation_s, embedding_clusters_s, weights_clusters_s, size_clusters_s) - prob_triplets(triplet) < delta * delta_unit)
 			return;
 
-		head -= alpha * sign(head + relation - tail);
-		tail += alpha * sign(head + relation - tail);
-		relation -= alpha * sign(head + relation - tail);
+		head -= alpha * beta * sign(head + relation - tail);
+		tail += alpha * beta * sign(head + relation - tail);
+		relation -= alpha * beta * sign(head + relation - tail);
 
 		if (norm_L2(head) > 1.0)
 			head = normalise(head);
@@ -279,6 +303,7 @@ public:
 	int					multify;
 	double			beta;
 	double			delta;
+	double			delta_unit;
 
 public:
 	TransG(
@@ -310,6 +335,7 @@ public:
 
 		beta = Beta;
 		delta = Delta;
+		delta_unit = 0.0;
 		multify = Multify;
 
 		if (be_weight_normalized)
@@ -535,13 +561,13 @@ public:
 		double prob_local_true = exp(-sum(abs(head + relation - tail)));
 
 		weights_clusters_s[triplet.second][cluster] +=
-			factor / prob_true * prob_local_true * sign(weights_clusters_s[triplet.second][cluster]);
+			beta * factor / prob_true * prob_local_true * sign(weights_clusters_s[triplet.second][cluster]);
 
-		head -= factor * sign(head + relation - tail)
+		head -= beta * factor * sign(head + relation - tail)
 			* prob_local_true / prob_true * fabs(weights_clusters[triplet.second][cluster]);
-		tail += factor * sign(head + relation - tail)
+		tail += beta * factor * sign(head + relation - tail)
 			* prob_local_true / prob_true * fabs(weights_clusters[triplet.second][cluster]);
-		relation -= factor * sign(head + relation - tail)
+		relation -= beta * factor * sign(head + relation - tail)
 			* prob_local_true / prob_true * fabs(weights_clusters[triplet.second][cluster]);
 
 		if (norm_L2(relation) > 1.0)
@@ -700,8 +726,9 @@ public:
 		double prob_true = training_prob_triplets_subgraph(triplet, size_clusters_s, embedding_entity_s, embedding_clusters_s, weights_clusters_s);
 		double prob_origin = training_prob_triplets_subgraph(triplet, size_clusters, embedding_entity, embedding_clusters, weights_clusters);
 
-		if (prob_true / prob_origin < exp(delta))
+		if (prob_true / prob_origin < exp(delta * delta_unit))
 			return;
+
 
 		pair<pair<int, int>, int> triplet_f = triplet;
 		data_model.sample_false_triplet(triplet, triplet_f);
@@ -745,6 +772,39 @@ public:
 		weights_clusters_s = weights_clusters;
 		size_clusters_s = size_clusters;
 	}
+
+	virtual void get_delta_unit(vector<vec>& embedding_relation_s, vector<vector<vec>>& embedding_clusters_s, vector<int>& size_clusters_s)
+	{
+		embedding_clusters_s = embedding_clusters;
+		size_clusters_s = size_clusters;
+		for (int c = 0; c < size_clusters_s[0]; c++)
+		{
+			double lth = 0;
+			for (int j = 0; j < dim; j++)
+			{
+				lth += pow(embedding_clusters_s[0][c](j), 2.0);
+			}
+			delta_unit += sqrt(lth);
+		}
+		delta_unit /= (double)(size_clusters_s[0]);
+
+		for (int i = 1; i < embedding_clusters_s.size(); i++)
+		{
+			double lth_avg = 0;
+			for (int c = 0; c < size_clusters_s[i]; c++)
+			{
+				double lth = 0;
+				for (int j = 0; j < dim; j++)
+				{
+					lth += pow(embedding_clusters_s[i][c](j), 2.0);
+				}
+				lth_avg += sqrt(lth);
+			}
+			lth_avg /= (double)(size_clusters_s[i]);
+			if (delta_unit > lth_avg) delta_unit = lth_avg;
+		}
+	}
+
 	virtual void report(const string& filename) const
 	{
 		if (task_type == TransM_ReportClusterNumber)

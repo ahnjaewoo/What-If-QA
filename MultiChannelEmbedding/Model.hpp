@@ -99,6 +99,7 @@ public:
 		vector<vector<vec>>& embedding_clusters_s, vector<vec>& weights_clusters_s, vector<int>& size_clusters_s) = 0;
 	virtual void deep_copy_for_subgraph(vector<vec>& embedding_entity_s, vector<vec>& embedding_relation_s, vector<vector<vec>>& embedding_clusters_s,
 		vector<vec>& weights_clusters_s, vector<int>& size_clusters_s) = 0;
+	virtual void get_delta_unit(vector<vec>& embedding_relation_s, vector<vector<vec>>& embedding_clusters_s, vector<int>& size_clusters_s) = 0;
 	virtual void train_triplet_subgraph(const pair<pair<int, int>, int>& triplet, vector<vec>& embedding_entity_s, vector<vec>& embedding_relation_s,
 		vector<vector<vec>>& embedding_clusters_s, vector<vec>& weights_clusters_s, vector<int>& size_clusters_s,
 		vector<pair<pair<int, int>, int>> subgraph) = 0;
@@ -168,6 +169,7 @@ public:
 		}
 		else if (gradient_mode == 1)
 		{
+			get_delta_unit(embedding_relation, embedding_clusters, size_clusters);
 			for (auto i = 0; i < data_model.data_test_true.size(); i++)
 			{
 				++cons_bar;
