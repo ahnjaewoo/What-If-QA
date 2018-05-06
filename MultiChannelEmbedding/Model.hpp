@@ -187,6 +187,7 @@ public:
 #pragma omp parallel for
 					for (auto j = dev_subgraph[i].begin(); j != dev_subgraph[i].end(); j++)
 					{
+						if (rand() % 10 >= 2) continue;
 						train_triplet_subgraph_BM(*j, embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters, subgraph[i], cut_pos_subgraph[i]);
 					}
 				}
