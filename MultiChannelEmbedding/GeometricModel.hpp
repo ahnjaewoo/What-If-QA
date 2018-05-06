@@ -214,7 +214,7 @@ public:
 		vec& tail = embedding_entity_s[triplet.first.second];
 		vec& relation = embedding_relation_s[triplet.second];
 
-		if (prob_triplets_subgraph(triplet, embedding_entity_s, embedding_relation_s, embedding_clusters_s, weights_clusters_s, size_clusters_s) - prob_triplets(triplet) < delta * delta_unit)
+		if (prob_triplets_subgraph(triplet, embedding_entity_s, embedding_relation_s, embedding_clusters_s, weights_clusters_s, size_clusters_s) - prob_triplets(triplet) > -delta * delta_unit)
 			return;
 
 		head -= alpha * beta * sign(head + relation - tail);
@@ -725,7 +725,7 @@ public:
 		double prob_true = training_prob_triplets_subgraph(triplet, size_clusters_s, embedding_entity_s, embedding_clusters_s, weights_clusters_s);
 		double prob_origin = training_prob_triplets_subgraph(triplet, size_clusters, embedding_entity, embedding_clusters, weights_clusters);
 
-		if (prob_true / prob_origin < exp(delta * delta_unit))
+		if (prob_true / prob_origin > exp(-delta * delta_unit))
 			return;
 
 		for (int c = 0; c<size_clusters_s[triplet.second]; ++c)
