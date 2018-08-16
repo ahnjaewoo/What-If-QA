@@ -665,11 +665,12 @@ public:
 		}
 
 		int cnt = 0;
+		deep_copy_for_subgraph(embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters);
 
 		cout << "Testing query-test-set.." << endl;
 		boost::progress_display cons_bar(data_model.data_test_true.size() / 100);
 
-#pragma omp parallel for
+//#pragma omp parallel for
 		for (auto i = data_model.data_test_true.begin(); i != data_model.data_test_true.end(); ++i)
 		{
 			++cnt;
@@ -682,6 +683,9 @@ public:
 			int frmean = 0;
 			int rmean = 0;
 			double score_i = prob_triplets(*i);
+			int head = t.first.first;
+			int relation = t.second;
+			int tail = t.first.second;
 
 			if (task_type == LinkPredictionRelation || part == 2)
 			{
@@ -739,6 +743,15 @@ public:
 				if (frmean < hit_rank)
 					++fhits;
 			}
+			/* CODES IN ORDER TO ACHIEVE SPECIFIC RESULTS COMPARING PARTIALLY UPDATED METHOD'S THOSE WITH BASELINE'S THOSE*/
+			//cout << "===============================================================================" << endl;
+	                //cout << "'" << data_model.entity_id_to_name[head] << " " << data_model.relation_id_to_name[relation] << " " << data_model.entity_id_to_name[tail] << "'- rmean: " << rmean <<", frmean: " << frmean << endl;
+        	        /*embedding_entity[head].print("head: ");
+                	embedding_entity[tail].print("tail: ");
+	                embedding_relation[relation].print("relation: ");*/
+			//vec error = embedding_entity[head] + embedding_relation[relation] - embedding_entity[tail];
+	                //cout << "baseline energy: " << sum(abs(error)) << endl;
+        	        //cout << "===============================================================================" << endl;
 		}
 
 		std::cout << endl;
@@ -786,6 +799,9 @@ public:
 		int frmean = 0;
 		int rmean = 0;
 		double score_i = prob_triplets_subgraph(t, embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters);
+		int head = t.first.first;
+		int relation = t.second;
+		int tail = t.first.second;
 
 		if (task_type == LinkPredictionRelation || part == 2)
 		{
@@ -824,6 +840,31 @@ public:
 				}
 			}
 		}
+		/* CODES IN ORDER TO ACHIEVE SPECIFIC RESULTS COMPARING PARTIALLY UPDATED METHOD'S THOSE WITH BASELINE'S THOSE*/
+		//cout << "===============================================================================" << endl;
+		//cout << "'" << data_model.entity_id_to_name[head] << " " << data_model.relation_id_to_name[relation] << " " << data_model.entity_id_to_name[tail] << "'- rmean: " << rmean <<", frmean: " << frmean  << endl;
+		/* embedding_entity[head].print("head: ");
+		embedding_entity[tail].print("tail: ");
+		embedding_relation[relation].print("relation: "); */
+		//vec error = embedding_entity[head] + embedding_relation[relation] - embedding_entity[tail];
+		//cout << "partial embedding query energy: " << sum(abs(error)) << endl;
+
+		// partial embedding condition energies
+		/*for (auto &v : data_model.data_condition[idx]) {
+			cout << "'" << data_model.entity_id_to_name[v.first.first] << " " << data_model.relation_id_to_name[v.second] << " " << data_model.entity_id_to_name[tail] << "'" << endl;
+			error = embedding_entity[v.first.first] + embedding_relation[v.second] - embedding_entity[v.first.second];
+			cout << "partial embedding condition energy: " << sum(abs(error)) << endl;
+		}*/
+		//deep_copy_for_subgraph(embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters);
+		//error = embedding_entity[head] + embedding_relation[relation] - embedding_entity[tail];
+                //cout << "baseline query energy: " << sum(abs(error)) << endl;
+		/*for (auto &v : data_model.data_condition[idx]) {
+                        cout << "'" << data_model.entity_id_to_name[v.first.first] << " " << data_model.relation_id_to_name[v.second] << " " << data_model.entity_id_to_name[tail] << "'" << endl;
+                        error = embedding_entity[v.first.first] + embedding_relation[v.second] - embedding_entity[v.first.second];
+                        cout << "baseline condition energy: " << sum(abs(error)) << endl;
+                }*/
+		//cout << "===============================================================================" << endl;
+
 #pragma omp critical
 		{
 			mean += rmean;
