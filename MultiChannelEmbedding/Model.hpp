@@ -873,9 +873,6 @@ public:
 			fout << "\n" << "tail, ";
 			for (int i=0; i < embedding_entity[v.first.second].size(); i++) fout << embedding_entity[v.first.second](i) << ", ";
 			 fout << endl;
-			embedding_entity[v.first.first].print("head: ");
-			embedding_entity[v.first.second].print("tail: ");
-			embedding_relation[v.second].print("relation: ");
 			cout << "'" << data_model.entity_id_to_name[v.first.first] << " " << data_model.relation_id_to_name[v.second] << " " << data_model.entity_id_to_name[v.first.second] << "'" << endl;
 			fout << "'" << data_model.entity_id_to_name[v.first.first] << " " << data_model.relation_id_to_name[v.second] << " " << data_model.entity_id_to_name[v.first.second] << "'" << endl;
 			error = embedding_entity[v.first.first] + embedding_relation[v.second] - embedding_entity[v.first.second];
@@ -894,9 +891,6 @@ public:
                 for (int i=0; i < embedding_entity[tail].size(); i++)
                         fout << embedding_entity[tail](i) << ", ";
                 fout << endl;
-		embedding_entity[head].print("head: ");
-                embedding_entity[tail].print("tail: ");
-                embedding_relation[relation].print("relation: ");
 		error = embedding_entity[head] + embedding_relation[relation] - embedding_entity[tail];
                 cout << "baseline query energy: " << sum(abs(error)) << endl;
 		fout << "baseline query energy: " << sum(abs(error)) << endl;
