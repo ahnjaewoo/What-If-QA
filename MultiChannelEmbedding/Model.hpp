@@ -850,8 +850,8 @@ public:
 		for (int i=0; i < embedding_entity[head].size(); i++)
 			fout << embedding_entity[head](i) << ", ";
 		fout << "\n" << "relation, ";
-		for (int i=0; i < embedding_entity[relation].size(); i++)
-                        fout << embedding_entity[relation](i) << ", ";
+		for (int i=0; i < embedding_relation[relation].size(); i++)
+                        fout << embedding_relation[relation](i) << ", ";
 		fout << "\n" << "tail, ";
 		for (int i=0; i < embedding_entity[tail].size(); i++)
                         fout << embedding_entity[tail](i) << ", ";
@@ -869,7 +869,7 @@ public:
 			fout << "head, ";
 			for (int i=0; i < embedding_entity[v.first.first].size(); i++) fout << embedding_entity[v.first.first](i) << ", ";
 			fout << "\n" << "relation, ";
-			for (int i=0; i < embedding_entity[v.second].size(); i++) fout << embedding_entity[v.second](i) << ", ";
+			for (int i=0; i < embedding_relation[v.second].size(); i++) fout << embedding_relation[v.second](i) << ", ";
 			fout << "\n" << "tail, ";
 			for (int i=0; i < embedding_entity[v.first.second].size(); i++) fout << embedding_entity[v.first.second](i) << ", ";
 			 fout << endl;
@@ -885,7 +885,7 @@ public:
                 for (int i=0; i < embedding_entity[head].size(); i++)
                         fout << embedding_entity[head](i) << ", ";
                 fout << "\n" << "relation, ";
-                for (int i=0; i < embedding_entity[relation].size(); i++)
+                for (int i=0; i < embedding_relation[relation].size(); i++)
                         fout << embedding_entity[relation](i) << ", ";
                 fout << "\n" << "tail, ";
                 for (int i=0; i < embedding_entity[tail].size(); i++)
@@ -902,7 +902,7 @@ public:
 			fout << "head, ";
                         for (int i=0; i < embedding_entity[v.first.first].size(); i++) fout << embedding_entity[v.first.first](i) << ", ";
                         fout << "\n" << "relation, ";
-                        for (int i=0; i < embedding_entity[v.second].size(); i++) fout << embedding_entity[v.second](i) << ", ";
+                        for (int i=0; i < embedding_relation[v.second].size(); i++) fout << embedding_relation[v.second](i) << ", ";
                         fout << "\n" << "tail, ";
                         for (int i=0; i < embedding_entity[v.first.second].size(); i++) fout << embedding_entity[v.first.second](i) << ", ";
                         fout << endl;
