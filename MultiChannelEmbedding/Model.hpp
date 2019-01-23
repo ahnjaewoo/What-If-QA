@@ -886,7 +886,7 @@ public:
                         fout << embedding_entity[head](i) << ", ";
                 fout << "\n" << "relation, ";
                 for (int i=0; i < embedding_relation[relation].size(); i++)
-                        fout << embedding_entity[relation](i) << ", ";
+                        fout << embedding_relation[relation](i) << ", ";
                 fout << "\n" << "tail, ";
                 for (int i=0; i < embedding_entity[tail].size(); i++)
                         fout << embedding_entity[tail](i) << ", ";
