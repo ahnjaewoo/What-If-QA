@@ -840,30 +840,80 @@ public:
 				}
 			}
 		}
+		ofstream fout("./result.csv");
 		/* CODES IN ORDER TO ACHIEVE SPECIFIC RESULTS COMPARING PARTIALLY UPDATED METHOD'S THOSE WITH BASELINE'S THOSE*/
-		//cout << "===============================================================================" << endl;
-		//cout << "'" << data_model.entity_id_to_name[head] << " " << data_model.relation_id_to_name[relation] << " " << data_model.entity_id_to_name[tail] << "'- rmean: " << rmean <<", frmean: " << frmean  << endl;
-		/* embedding_entity[head].print("head: ");
+		cout << "===============================================================================" << endl;
+		cout << "'" << data_model.entity_id_to_name[head] << " " << data_model.relation_id_to_name[relation] << " " << data_model.entity_id_to_name[tail] << "'- rmean: " << rmean <<", frmean: " << frmean  << endl;
+		fout << "'" << data_model.entity_id_to_name[head] << " " << data_model.relation_id_to_name[relation] << " " << data_model.entity_id_to_name[tail] << "'- rmean: " << rmean <<", frmean: " << frmean << endl; 
+		fout << "AFTER PARTIAL EMBEDDING(QUESTION)" << endl;
+		fout << "head, ";
+		for (int i=0; i < embedding_entity[head].size(); i++)
+			fout << embedding_entity[head](i) << ", ";
+		fout << "\n" << "relation, ";
+		for (int i=0; i < embedding_entity[relation].size(); i++)
+                        fout << embedding_entity[relation](i) << ", ";
+		fout << "\n" << "tail, ";
+		for (int i=0; i < embedding_entity[tail].size(); i++)
+                        fout << embedding_entity[tail](i) << ", ";
+		fout << endl;
+		embedding_entity[head].print("head: ");
 		embedding_entity[tail].print("tail: ");
-		embedding_relation[relation].print("relation: "); */
-		//vec error = embedding_entity[head] + embedding_relation[relation] - embedding_entity[tail];
-		//cout << "partial embedding query energy: " << sum(abs(error)) << endl;
+		embedding_relation[relation].print("relation: ");
+		vec error = embedding_entity[head] + embedding_relation[relation] - embedding_entity[tail];
+		cout << "partial embedding query energy: " << sum(abs(error)) << endl;
+		fout << "partial embedding query energy: " << sum(abs(error)) << endl;
 
 		// partial embedding condition energies
-		/*for (auto &v : data_model.data_condition[idx]) {
-			cout << "'" << data_model.entity_id_to_name[v.first.first] << " " << data_model.relation_id_to_name[v.second] << " " << data_model.entity_id_to_name[tail] << "'" << endl;
+		fout << "AFTER PARTIAL EMBEDDING(CONDITIONS)" << endl;
+		for (auto &v : data_model.data_condition[idx]) {
+			fout << "head, ";
+			for (int i=0; i < embedding_entity[v.first.first].size(); i++) fout << embedding_entity[v.first.first](i) << ", ";
+			fout << "\n" << "relation, ";
+			for (int i=0; i < embedding_entity[v.second].size(); i++) fout << embedding_entity[v.second](i) << ", ";
+			fout << "\n" << "tail, ";
+			for (int i=0; i < embedding_entity[v.first.second].size(); i++) fout << embedding_entity[v.first.second](i) << ", ";
+			 fout << endl;
+			cout << "'" << data_model.entity_id_to_name[v.first.first] << " " << data_model.relation_id_to_name[v.second] << " " << data_model.entity_id_to_name[v.first.second] << "'" << endl;
+			fout << "'" << data_model.entity_id_to_name[v.first.first] << " " << data_model.relation_id_to_name[v.second] << " " << data_model.entity_id_to_name[v.first.second] << "'" << endl;
 			error = embedding_entity[v.first.first] + embedding_relation[v.second] - embedding_entity[v.first.second];
 			cout << "partial embedding condition energy: " << sum(abs(error)) << endl;
-		}*/
-		//deep_copy_for_subgraph(embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters);
-		//error = embedding_entity[head] + embedding_relation[relation] - embedding_entity[tail];
-                //cout << "baseline query energy: " << sum(abs(error)) << endl;
-		/*for (auto &v : data_model.data_condition[idx]) {
-                        cout << "'" << data_model.entity_id_to_name[v.first.first] << " " << data_model.relation_id_to_name[v.second] << " " << data_model.entity_id_to_name[tail] << "'" << endl;
+			fout << "partial embedding condition energy: " << sum(abs(error)) << endl;
+		}
+		deep_copy_for_subgraph(embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters);
+		fout << "BEFORE PARTIAL EMBEDDING(QUESITON)" << endl;
+                fout << "head, ";
+                for (int i=0; i < embedding_entity[head].size(); i++)
+                        fout << embedding_entity[head](i) << ", ";
+                fout << "\n" << "relation, ";
+                for (int i=0; i < embedding_entity[relation].size(); i++)
+                        fout << embedding_entity[relation](i) << ", ";
+                fout << "\n" << "tail, ";
+                for (int i=0; i < embedding_entity[tail].size(); i++)
+                        fout << embedding_entity[tail](i) << ", ";
+                fout << endl;
+		embedding_entity[head].print("head: ");
+                embedding_entity[tail].print("tail: ");
+                embedding_relation[relation].print("relation: ");
+		error = embedding_entity[head] + embedding_relation[relation] - embedding_entity[tail];
+                cout << "baseline query energy: " << sum(abs(error)) << endl;
+		fout << "baseline query energy: " << sum(abs(error)) << endl;
+		fout << "BEFORE PARTIAL EMBEDDING(CONDITIONS)" << endl;
+		for (auto &v : data_model.data_condition[idx]) {
+			fout << "head, ";
+                        for (int i=0; i < embedding_entity[v.first.first].size(); i++) fout << embedding_entity[v.first.first](i) << ", ";
+                        fout << "\n" << "relation, ";
+                        for (int i=0; i < embedding_entity[v.second].size(); i++) fout << embedding_entity[v.second](i) << ", ";
+                        fout << "\n" << "tail, ";
+                        for (int i=0; i < embedding_entity[v.first.second].size(); i++) fout << embedding_entity[v.first.second](i) << ", ";
+                        fout << endl;
+                        cout << "'" << data_model.entity_id_to_name[v.first.first] << " " << data_model.relation_id_to_name[v.second] << " " << data_model.entity_id_to_name[v.first.second] << "'" << endl;
+			fout << "'" << data_model.entity_id_to_name[v.first.first] << " " << data_model.relation_id_to_name[v.second] << " " << data_model.entity_id_to_name[v.first.second] << "'" << endl;
                         error = embedding_entity[v.first.first] + embedding_relation[v.second] - embedding_entity[v.first.second];
                         cout << "baseline condition energy: " << sum(abs(error)) << endl;
-                }*/
-		//cout << "===============================================================================" << endl;
+			fout << "baseline condition energy: " << sum(abs(error)) << endl;
+                }
+		fout.close();
+		cout << "===============================================================================" << endl;
 
 #pragma omp critical
 		{

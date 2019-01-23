@@ -49,9 +49,9 @@ const Dataset FB15K_("FB15K_", "/home/rudvlf0413/kge/What-If-QA/FB15K/", "train_
 const Dataset FB13("FB13", "/home/bookman/data/Knowledge Embedding/FB13/", "train.txt", "dev.txt", "test.txt", false);
 const Dataset WN11("WN11", "/home/bookman/data/Knowledge Embedding/WN11/", "train.txt", "dev.txt", "test.txt", false);
 const Dataset WN18("WN18", "/home/rudvlf0413/kge/What-If-QA/WN18/", "train.txt", "dev.txt", "test.txt", true);
-const Dataset WN18_("WN18_", "/home/rudvlf0413/kge/What-If-QA/WN18/", "train_.txt", "dev_.txt", "query_.txt", "condition_.txt", true);
+//const Dataset WN18_("WN18_", "/home/rudvlf0413/kge/What-If-QA/WN18/", "train_.txt", "dev_.txt", "query_.txt", "condition_.txt", true);
 //const Dataset WN18_("WN18_", "/home/rudvlf0413/kge/What-If-QA/WN18/", "train_.txt", "dev_.txt", "query_toy.txt", "condition_toy.txt", true);
-//const Dataset WN18_("WN18_", "/home/rudvlf0413/kge/What-If-QA/TOYDATA/", "train.txt", "dev.txt", "test.txt", "condition.txt", true);
+const Dataset WN18_("WN18_", "/home/rudvlf0413/kge/What-If-QA/TOYDATA/", "train.txt", "dev.txt", "test.txt", "condition.txt", true);
 const Dataset Wordnet("Wordnet", "/home/bookman/data/Knowledge Embedding/Wordnet/", "train.txt", "dev.txt", "test.txt", false);
 const Dataset Freebase("Freebase", "/home/bookman/data/Knowledge Embedding/Freebase/", "train.txt", "dev.txt", "test.txt", false);
 const string report_path = "/home/bookman/Report/";
