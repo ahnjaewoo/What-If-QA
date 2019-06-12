@@ -182,7 +182,6 @@ public:
                 gettimeofday(&after_single_query, NULL);
                 fout <<  after_single_query.tv_sec + after_single_query.tv_usec/1000000.0 - before_single_query.tv_sec - before_single_query.tv_usec/1000000.0 << ", " << total_epos << endl;
 			}
-            test_link_prediction();
 
             // for (auto j=0; j<6; j++)
             // {
