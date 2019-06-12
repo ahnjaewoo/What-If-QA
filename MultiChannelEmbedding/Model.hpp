@@ -6,8 +6,9 @@
 #include <cmath>
 #include <cstdlib>
 #include <fstream>
+#include <sstream>
 #include <sys/time.h>
-
+#include <ctime>
 using namespace std;
 using namespace arma;
 
@@ -43,12 +44,14 @@ public:
 
 public:
 	int	epos;
+    int rmean_instances[6];
 
 public:
 	vector<vector<pair<pair<int, int>, int>>> subgraph;
 	vector<vector<pair<pair<int, int>, int>>> dev_subgraph;
 	vector<vector<int>> cut_pos_subgraph;
 	int gradient_mode;
+    ofstream fout;
 
 public:
 	Model(const Dataset& dataset,
@@ -59,6 +62,8 @@ public:
 		be_deleted_data_model(true)
 	{
 		epos = 0;
+        for (auto i = 0; i < 6; i++)
+            rmean_instances[i] = 0;
 		best_triplet_result = 0;
 		std::cout << "Ready" << endl;
 
@@ -134,6 +139,15 @@ public:
 		total = data_model.data_test_true.size();
 		rrank.resize(data_model.data_test_true.size());
 		frank.resize(data_model.data_test_true.size());
+        
+        
+        time_t t = time(0);   // get time now
+        struct tm * now = localtime( & t  );
+        stringstream ss;
+
+        ss << "subgraph_" << (now->tm_year + 1900) << '_' << (now->tm_mon + 1) << '_' <<  now->tm_mday << '_'  <<  now->tm_hour << '_' <<  now->tm_min << '_' <<  now->tm_sec << ".csv";
+        fout.open(ss.str());
+        fout << "# of condition triples, # of subgraph triples, rmean, frmean, real hit, time(s), subgraph training iteration" << endl;
 
 		cout << "\nTraining subgraph & testing test-set.." << endl;
 		boost::progress_display	cons_bar(data_model.data_test_true.size());
@@ -143,6 +157,8 @@ public:
 			for (auto i = 0; i < data_model.data_test_true.size(); i++)
 			{
 				++cons_bar;
+                struct timeval after_single_query, before_single_query;
+                gettimeofday(&before_single_query, NULL);
 
 				//deep copy
 				deep_copy_for_subgraph(embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters);
@@ -162,7 +178,16 @@ public:
 
 				//test : triplet classification
 				test_triplet_classification_subgraph(i);
+                
+                gettimeofday(&after_single_query, NULL);
+                fout <<  after_single_query.tv_sec + after_single_query.tv_usec/1000000.0 - before_single_query.tv_sec - before_single_query.tv_usec/1000000.0 << ", " << total_epos << endl;
 			}
+            test_link_prediction();
+
+            // for (auto j=0; j<6; j++)
+            // {
+            //     cout << "number of instances whose rmean = " << j << "is: " << rmean_instances[j] << endl;
+            // }
 
 			print_final_test_link_prediction_subgraph();
 			print_final_test_triplet_classification_subgraph();
@@ -173,10 +198,13 @@ public:
 			for (auto i = 0; i < data_model.data_test_true.size(); i++)
 			{
 				++cons_bar;
+                struct timeval after_single_query, before_single_query;
+                gettimeofday(&before_single_query, NULL);
 
 				//deep copy
 				deep_copy_for_subgraph(embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters);
-				//train
+				
+                //train
 				for (auto tot = 0; tot < total_epos; tot++)
 				{
 #pragma omp parallel for
@@ -197,6 +225,9 @@ public:
 
 				//test : triplet classification
 				test_triplet_classification_subgraph(i);
+			    
+                gettimeofday(&after_single_query, NULL);
+                fout <<  after_single_query.tv_sec + after_single_query.tv_usec/1000000.0 - before_single_query.tv_sec - before_single_query.tv_usec/1000000.0 << ", " << total_epos << endl;
 			}
 
 			print_final_test_link_prediction_subgraph();
@@ -343,14 +374,34 @@ public:
 						if (j == k) continue;
 						int e1 = data_model.entity_name_to_id.at(j);
 						int e2 = data_model.entity_name_to_id.at(k);
-						if (data_model.rel_finder.find(make_pair(e1, e2)) != data_model.rel_finder.end())
-							subgraph[i].push_back(make_pair(make_pair(e1, e2), data_model.rel_finder.at(make_pair(e1, e2))));
+                        if (data_model.rel_finder.find(make_pair(e1, e2)) != data_model.rel_finder.end()) {
+                            subgraph[i].push_back(make_pair(make_pair(e1, e2), data_model.rel_finder.at(make_pair(e1, e2))));
+                            // codes for use case: constructing sub graph without crucial clue triples in it
+                            // if ((e1 != data_model.data_test_true[i].first.second || e2 != data_model.data_test_true[i].first.first) && (e1 != data_model.data_test_true[i].first.first || e2 != data_model.data_test_true[i].first.second))
+                            // {   
+                            //     subgraph[i].push_back(make_pair(make_pair(e1, e2), data_model.rel_finder.at(make_pair(e1, e2))));
+                            // }
+                            // else {
+                            //     cout << "oh my god there's a crucial clue in subgraph [" << i << "]" << endl;
+                            // }
+                        }
 					}
 				}
 				for (auto j = 0; j < data_model.data_condition[i].size(); ++j)
 				{
 					subgraph[i].push_back(data_model.data_condition[i][j]);	//containing conditional part C
 				}
+
+                // printing subgraph size and triples
+                if (0)
+                // if (i == 0 || i == 4) 
+                {
+                    cout << "subgraph [" << i << "]: num of triples: " << subgraph[i].size() << endl;
+                    for (auto j : subgraph[i])
+                    {
+                        cout << data_model.entity_id_to_name[j.first.first] << ", " << data_model.relation_id_to_name[j.second] << ", " << data_model.entity_id_to_name[j.first.second] << endl;
+                    }
+                }
 
 				//constructing cutting edge subgraph
 				if (gradient_mode == 1) {
@@ -467,6 +518,18 @@ public:
 
 			//2. subgraph + condition 학습
 			//triplet learning
+            
+            // writing num of condition & subgraph triples in csv file
+            // ofstream file;
+            // file.open("subgraph.csv");
+            // file << "# of condition triples, # of subgraph triples,\n";
+            // for (auto i=0; i<subgraph.size();i++)
+            // {
+            //     // cout << "# of condition triples: " << data_model.data_condition[i].size() << endl; 
+            //     // cout << "# of subgraph triples: " << subgraph[i].size() << endl;
+
+            //     file << data_model.data_condition[i].size() << ", " << subgraph[i].size() << endl;
+            // }
 
 			//3 - 1. 그리고 밑에 있는 test task 수행
 			//test_link_prediction per test set
@@ -620,11 +683,13 @@ public:
 				threshold = i->first;
 			}
 		}
+        double original_real_hit = real_hit;
 		if (prob_triplets_subgraph(triplet, embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters) > threshold)
 			++real_hit, ++lreal_hit;
 
 		if (prob_triplets_subgraph(triplet_f, embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters) <= threshold)
 			++real_hit, ++lreal_hit;
+        fout << real_hit - original_real_hit << ", ";
 	}
 
 	void print_final_test_triplet_classification_subgraph()
@@ -695,7 +760,7 @@ public:
 
 					if (score_i >= prob_triplets(t))
 						continue;
-
+                    
 					++rmean;
 
 					if (data_model.check_data_all.find(t) == data_model.check_data_all.end())
@@ -715,6 +780,7 @@ public:
 						continue;
 
 					++rmean;
+                    // cout << data_model.entity_id_to_name[j] << endl;
 
 					if (data_model.check_data_all.find(t) == data_model.check_data_all.end())
 					{
@@ -744,8 +810,8 @@ public:
 					++fhits;
 			}
 			/* CODES IN ORDER TO ACHIEVE SPECIFIC RESULTS COMPARING PARTIALLY UPDATED METHOD'S THOSE WITH BASELINE'S THOSE*/
-			//cout << "===============================================================================" << endl;
-	                //cout << "'" << data_model.entity_id_to_name[head] << " " << data_model.relation_id_to_name[relation] << " " << data_model.entity_id_to_name[tail] << "'- rmean: " << rmean <<", frmean: " << frmean << endl;
+			// cout << "===============================================================================" << endl;
+	        //        cout << cnt << ": '" << data_model.entity_id_to_name[head] << " " << data_model.relation_id_to_name[relation] << " " << data_model.entity_id_to_name[tail] << "'- rmean: " << rmean <<", frmean: " << frmean << endl;
         	        /*embedding_entity[head].print("head: ");
                 	embedding_entity[tail].print("tail: ");
 	                embedding_relation[relation].print("relation: ");*/
@@ -840,81 +906,127 @@ public:
 				}
 			}
 		}
-		// ofstream fout("./result.csv");
-		/* CODES IN ORDER TO ACHIEVE SPECIFIC RESULTS COMPARING PARTIALLY UPDATED METHOD'S THOSE WITH BASELINE'S THOSE*/
-		// cout << "===============================================================================" << endl;
-		// cout << "'" << data_model.entity_id_to_name[head] << " " << data_model.relation_id_to_name[relation] << " " << data_model.entity_id_to_name[tail] << "'- rmean: " << rmean <<", frmean: " << frmean  << endl;
-		// fout << "'" << data_model.entity_id_to_name[head] << " " << data_model.relation_id_to_name[relation] << " " << data_model.entity_id_to_name[tail] << "'- rmean: " << rmean <<", frmean: " << frmean << endl; 
-		// fout << "AFTER PARTIAL EMBEDDING(QUESTION)" << endl;
-		// fout << "head, ";
-		// for (int i=0; i < embedding_entity[head].size(); i++)
-		// 	fout << embedding_entity[head](i) << ", ";
-		// fout << "\n" << "relation, ";
-		// for (int i=0; i < embedding_relation[relation].size(); i++)
-  //                       fout << embedding_relation[relation](i) << ", ";
-		// fout << "\n" << "tail, ";
-		// for (int i=0; i < embedding_entity[tail].size(); i++)
-  //                       fout << embedding_entity[tail](i) << ", ";
-		// fout << endl;
-		// embedding_entity[head].print("head: ");
-		// embedding_entity[tail].print("tail: ");
-		// embedding_relation[relation].print("relation: ");
-		// vec error = embedding_entity[head] + embedding_relation[relation] - embedding_entity[tail];
-		// cout << "partial embedding query energy: " << sum(abs(error)) << endl;
-		// fout << "partial embedding query energy: " << sum(abs(error)) << endl;
 
-		// // partial embedding condition energies
-		// fout << "AFTER PARTIAL EMBEDDING(CONDITIONS)" << endl;
-		// for (auto &v : data_model.data_condition[idx]) {
-		// 	fout << "head, ";
-		// 	for (int i=0; i < embedding_entity[v.first.first].size(); i++) fout << embedding_entity[v.first.first](i) << ", ";
-		// 	fout << "\n" << "relation, ";
-		// 	for (int i=0; i < embedding_relation[v.second].size(); i++) fout << embedding_relation[v.second](i) << ", ";
-		// 	fout << "\n" << "tail, ";
-		// 	for (int i=0; i < embedding_entity[v.first.second].size(); i++) fout << embedding_entity[v.first.second](i) << ", ";
-		// 	 fout << endl;
-		// 	cout << "'" << data_model.entity_id_to_name[v.first.first] << " " << data_model.relation_id_to_name[v.second] << " " << data_model.entity_id_to_name[v.first.second] << "'" << endl;
-		// 	fout << "'" << data_model.entity_id_to_name[v.first.first] << " " << data_model.relation_id_to_name[v.second] << " " << data_model.entity_id_to_name[v.first.second] << "'" << endl;
-		// 	error = embedding_entity[v.first.first] + embedding_relation[v.second] - embedding_entity[v.first.second];
-		// 	cout << "partial embedding condition energy: " << sum(abs(error)) << endl;
-		// 	fout << "partial embedding condition energy: " << sum(abs(error)) << endl;
-		// }
-		// deep_copy_for_subgraph(embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters);
-		// fout << "BEFORE PARTIAL EMBEDDING(QUESITON)" << endl;
-  //               fout << "head, ";
-  //               for (int i=0; i < embedding_entity[head].size(); i++)
-  //                       fout << embedding_entity[head](i) << ", ";
-  //               fout << "\n" << "relation, ";
-  //               for (int i=0; i < embedding_relation[relation].size(); i++)
-  //                       fout << embedding_relation[relation](i) << ", ";
-  //               fout << "\n" << "tail, ";
-  //               for (int i=0; i < embedding_entity[tail].size(); i++)
-  //                       fout << embedding_entity[tail](i) << ", ";
-  //               fout << endl;
-		// embedding_entity[head].print("head: ");
-  //               embedding_entity[tail].print("tail: ");
-  //               embedding_relation[relation].print("relation: ");
-		// error = embedding_entity[head] + embedding_relation[relation] - embedding_entity[tail];
-  //               cout << "baseline query energy: " << sum(abs(error)) << endl;
-		// fout << "baseline query energy: " << sum(abs(error)) << endl;
-		// fout << "BEFORE PARTIAL EMBEDDING(CONDITIONS)" << endl;
-		// for (auto &v : data_model.data_condition[idx]) {
-		// 	fout << "head, ";
-  //                       for (int i=0; i < embedding_entity[v.first.first].size(); i++) fout << embedding_entity[v.first.first](i) << ", ";
-  //                       fout << "\n" << "relation, ";
-  //                       for (int i=0; i < embedding_relation[v.second].size(); i++) fout << embedding_relation[v.second](i) << ", ";
-  //                       fout << "\n" << "tail, ";
-  //                       for (int i=0; i < embedding_entity[v.first.second].size(); i++) fout << embedding_entity[v.first.second](i) << ", ";
-  //                       fout << endl;
-  //                       cout << "'" << data_model.entity_id_to_name[v.first.first] << " " << data_model.relation_id_to_name[v.second] << " " << data_model.entity_id_to_name[v.first.second] << "'" << endl;
-		// 	fout << "'" << data_model.entity_id_to_name[v.first.first] << " " << data_model.relation_id_to_name[v.second] << " " << data_model.entity_id_to_name[v.first.second] << "'" << endl;
-  //                       error = embedding_entity[v.first.first] + embedding_relation[v.second] - embedding_entity[v.first.second];
-  //                       cout << "baseline condition energy: " << sum(abs(error)) << endl;
-		// 	fout << "baseline condition energy: " << sum(abs(error)) << endl;
-  //               }
-		// fout.close();
-		// cout << "===============================================================================" << endl;
+        fout << data_model.data_condition[idx].size() << ", " << subgraph[idx].size() << ", " << rmean << ", " << frmean << ", ";
+        // finding subgraph instances whose rank is smaller 5th rank
+        // if (rmean <= 5)
+        // {
+        //      rmean_instances[rmean] += 1;
+        // }
+        
+        if (0)
+        {
+            cout << "False" << endl;
+		    // ofstream fout("./result.csv");
+		    // /* CODES IN ORDER TO ACHIEVE SPECIFIC RESULTS COMPARING PARTIALLY UPDATED METHOD'S THOSE WITH BASELINE'S THOSE*/
+		    // cout << "===============================================================================" << endl;
+		    // cout << "'" << data_model.entity_id_to_name[head] << " " << data_model.relation_id_to_name[relation] << " " << data_model.entity_id_to_name[tail] << "'- rmean: " << rmean <<", frmean: " << frmean  << endl;
+		    // fout << "'" << data_model.entity_id_to_name[head] << " " << data_model.relation_id_to_name[relation] << " " << data_model.entity_id_to_name[tail] << "'- rmean: " << rmean <<", frmean: " << frmean << endl; 
+            // fout << "AFTER PARTIAL EMBEDDING(QUESTION)" << endl;
+		    // fout << "head, ";
+		    // for (int i=0; i < embedding_entity[head].size(); i++)
+            //     fout << embedding_entity[head](i) << ", ";
+		    // fout << "\n" << "relation, ";
+		    // for (int i=0; i < embedding_relation[relation].size(); i++)
+            //     fout << embedding_relation[relation](i) << ", ";
+		    // fout << "\n" << "tail, ";
+		    // for (int i=0; i < embedding_entity[tail].size(); i++) 
+            //     fout << embedding_entity[tail](i) << ", ";
+		    // fout << endl;
+		    // // embedding_entity[head].print("head: ");
+		    // // embedding_entity[tail].print("tail: ");
+		    // // embedding_relation[relation].print("relation: ");
+		    // vec error = embedding_entity[head] + embedding_relation[relation] - embedding_entity[tail];
+		    // cout << "partial embedding query energy: " << sum(abs(error)) << endl;
+		    // fout << "partial embedding query energy: " << sum(abs(error)) << endl;
 
+		    // // partial embedding condition energies
+		    // fout << "AFTER PARTIAL EMBEDDING(CONDITIONS)" << endl;
+		    // for (auto &v : data_model.data_condition[idx]) {
+            //     fout << "head, ";
+		    // 	for (int i=0; i < embedding_entity[v.first.first].size(); i++) fout << embedding_entity[v.first.first](i) << ", ";
+            //     fout << "\n" << "relation, ";
+            //     for (int i=0; i < embedding_relation[v.second].size(); i++) fout << embedding_relation[v.second](i) << ", ";
+            //     fout << "\n" << "tail, ";
+            //     for (int i=0; i < embedding_entity[v.first.second].size(); i++) fout << embedding_entity[v.first.second](i) << ", ";
+            //     fout << endl;
+            //     cout << "'" << data_model.entity_id_to_name[v.first.first] << " " << data_model.relation_id_to_name[v.second] << " " << data_model.entity_id_to_name[v.first.second] << "'" << endl;
+            //     fout << "'" << data_model.entity_id_to_name[v.first.first] << " " << data_model.relation_id_to_name[v.second] << " " << data_model.entity_id_to_name[v.first.second] << "'" << endl;
+            //     error = embedding_entity[v.first.first] + embedding_relation[v.second] - embedding_entity[v.first.second];
+            //     cout << "partial embedding condition energy: " << sum(abs(error)) << endl;
+            //     fout << "partial embedding condition energy: " << sum(abs(error)) << endl;
+            // }
+
+		    // // partial embedding subgraph energies
+            // fout << "AFTER PARTIAL EMBEDDING(SUBGRAPH)" << endl;
+            //     for (auto &v : subgraph[idx]) {
+            //     fout << "head, ";
+            //     for (int i=0; i < embedding_entity[v.first.first].size(); i++) fout << embedding_entity[v.first.first](i) << ", ";
+            //     fout << "\n" << "relation, ";
+            //     for (int i=0; i < embedding_relation[v.second].size(); i++) fout << embedding_relation[v.second](i) << ", ";
+            //     fout << "\n" << "tail, ";
+            //     for (int i=0; i < embedding_entity[v.first.second].size(); i++) fout << embedding_entity[v.first.second](i) << ", ";
+            //     fout << endl;
+            //     // cout << "'" << data_model.entity_id_to_name[v.first.first] << " " << data_model.relation_id_to_name[v.second] << " " << data_model.entity_id_to_name[v.first.second] << "'" << endl;
+            //     fout << "'" << data_model.entity_id_to_name[v.first.first] << " " << data_model.relation_id_to_name[v.second] << " " << data_model.entity_id_to_name[v.first.second] << "'" << endl;
+            //     error = embedding_entity[v.first.first] + embedding_relation[v.second] - embedding_entity[v.first.second];
+            //     // cout << "partial embedding subgraph energy: " << sum(abs(error)) << endl;
+            //     fout << "partial embedding subgraph energy: " << sum(abs(error)) << endl;
+            // }
+
+		    // deep_copy_for_subgraph(embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters);
+		    // fout << "BEFORE PARTIAL EMBEDDING(QUESITON)" << endl;
+            // fout <<  "head, ";
+            // for (int i=0; i < embedding_entity[head].size(); i++)
+            //     fout << embedding_entity[head](i) << ", ";
+            // fout << "\n" << "relation, ";
+            // for (int i=0; i < embedding_relation[relation].size(); i++)
+            //     fout << embedding_relation[relation](i) << ", ";
+            // fout << "\n" << "tail, ";
+            // for (int i=0; i < embedding_entity[tail].size(); i++)
+            //     fout << embedding_entity[tail](i) << ", ";
+            // fout << endl;
+            // // embedding_entity[head].print("head: ");
+            // // embedding_entity[tail].print("tail: ");
+            // // embedding_relation[relation].print("relation: ");
+		    // error = embedding_entity[head] + embedding_relation[relation] - embedding_entity[tail];
+            // cout << "baseline query energy: " << sum(abs(error)) << endl;
+		    // fout << "baseline query energy: " << sum(abs(error)) << endl;
+		    // 
+		    // fout << "BEFORE PARTIAL EMBEDDING(CONDITIONS)" << endl;
+		    // for (auto &v : data_model.data_condition[idx]) {
+            //     fout <<  "head, ";
+            //     for (int i=0; i < embedding_entity[v.first.first].size(); i++) fout << embedding_entity[v.first.first](i) << ", ";
+            //     fout << "\n" << "relation, ";
+            //     for (int i=0; i < embedding_relation[v.second].size(); i++) fout << embedding_relation[v.second](i) << ", ";
+            //     fout << "\n" << "tail, ";
+            //     for (int i=0; i < embedding_entity[v.first.second].size(); i++) fout << embedding_entity[v.first.second](i) << ", ";
+            //     fout << endl;
+            //     cout << "'" << data_model.entity_id_to_name[v.first.first] << " " << data_model.relation_id_to_name[v.second] << " " << data_model.entity_id_to_name[v.first.second] << "'" << endl;
+            //     fout << "'" << data_model.entity_id_to_name[v.first.first] << " " << data_model.relation_id_to_name[v.second] << " " << data_model.entity_id_to_name[v.first.second] << "'" << endl;
+            //     error = embedding_entity[v.first.first] + embedding_relation[v.second] - embedding_entity[v.first.second];
+            //     cout << "baseline condition energy: " << sum(abs(error)) << endl;
+            //     fout << "baseline condition energy: " << sum(abs(error)) << endl;
+            // }
+
+		    // fout << "BEFORE PARTIAL EMBEDDING(SUBGRAPH)" << endl;
+            // for (auto &v : subgraph[idx]) {
+            //     fout <<  "head, ";
+            //     for (int i=0; i < embedding_entity[v.first.first].size(); i++) fout << embedding_entity[v.first.first](i) << ", ";
+            //     fout << "\n" << "relation, ";
+            //     for (int i=0; i < embedding_relation[v.second].size(); i++) fout << embedding_relation[v.second](i) << ", ";
+            //     fout << "\n" << "tail, ";
+            //     for (int i=0; i < embedding_entity[v.first.second].size(); i++) fout << embedding_entity[v.first.second](i) << ", ";
+            //     fout << endl;
+            //     // cout << "'" << data_model.entity_id_to_name[v.first.first] << " " << data_model.relation_id_to_name[v.second] << " " << data_model.entity_id_to_name[v.first.second] << "'" << endl;
+            //     fout << "'" << data_model.entity_id_to_name[v.first.first] << " " << data_model.relation_id_to_name[v.second] << " " << data_model.entity_id_to_name[v.first.second] << "'" << endl;
+            //     error = embedding_entity[v.first.first] + embedding_relation[v.second] - embedding_entity[v.first.second];
+            //     // cout << "baseline subgraph energy: " << sum(abs(error)) << endl;
+            //     fout << "baseline subgraph energy: " << sum(abs(error)) << endl;
+            // }
+		    // fout.close();
+		    // cout << "===============================================================================" << endl;
+        }
 #pragma omp critical
 		{
 			mean += rmean;
