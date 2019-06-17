@@ -45,6 +45,7 @@ int main(int argc, char* argv[])
 
 		gettimeofday(&after, NULL);
 		cout << "training training_data time :  " << after.tv_sec + after.tv_usec/1000000.0 - before.tv_sec - before.tv_usec/1000000.0 << "seconds" << endl;
+        model->logging.record() << "training training_data time :  " << after.tv_sec + after.tv_usec/1000000.0 - before.tv_sec - before.tv_usec/1000000.0 << "seconds";
 
 		//testing
 		switch (atoi(argv[11]))
@@ -79,7 +80,6 @@ int main(int argc, char* argv[])
 			return 0;
 			break;
 		}
-
 		//calculating training time
 		struct timeval after, before;
 		gettimeofday(&before, NULL);
@@ -88,6 +88,7 @@ int main(int argc, char* argv[])
 
 		gettimeofday(&after, NULL);
 		cout << "training training_data time :  " << after.tv_sec + after.tv_usec/1000000.0 - before.tv_sec - before.tv_usec/1000000.0 << "seconds" << endl;
+        model->logging.record() << "training training_data time :  " << after.tv_sec + after.tv_usec/1000000.0 - before.tv_sec - before.tv_usec/1000000.0 << "seconds";
 
 		//testing
 		switch (atoi(argv[9]))

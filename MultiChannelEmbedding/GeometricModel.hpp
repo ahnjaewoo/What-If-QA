@@ -41,6 +41,9 @@ public:
 		logging.record() << "\t[Dimension]\t" << dim;
 		logging.record() << "\t[Learning Rate]\t" << alpha;
 		logging.record() << "\t[Training Threshold]\t" << training_threshold;
+        logging.record() << "\t[BM beta]\t" << Beta;
+        logging.record() << "\t[BM delta]\t" << Delta;
+
 
 		beta = Beta;
 		delta = Delta;
@@ -326,12 +329,14 @@ public:
 		single_or_total(sot), be_weight_normalized(be_weight_normalized), step_before(step_before),
 		normalizor(1.0 / pow(3.1415, dim / 2))
 	{
-		logging.record() << "\t[Name]\tTransM";
+		logging.record() << "\t[Name]\tTransG";
 		logging.record() << "\t[Dimension]\t" << dim;
 		logging.record() << "\t[Learning Rate]\t" << alpha;
 		logging.record() << "\t[Training Threshold]\t" << training_threshold;
 		logging.record() << "\t[Cluster Counts]\t" << n_cluster;
 		logging.record() << "\t[CRP Factor]\t" << CRP_factor;
+        logging.record() << "\t[BM beta]\t" << Beta;
+        logging.record() << "\t[BM delta]\t" << Delta;
 
 		beta = Beta;
 		delta = Delta;

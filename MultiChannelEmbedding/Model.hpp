@@ -9,6 +9,8 @@
 #include <sstream>
 #include <sys/time.h>
 #include <ctime>
+#include <thread>
+#include <chrono>
 using namespace std;
 using namespace arma;
 
@@ -141,13 +143,13 @@ public:
 		frank.resize(data_model.data_test_true.size());
         
         
-        time_t t = time(0);   // get time now
-        struct tm * now = localtime( & t  );
-        stringstream ss;
+        // time_t t = time(0);   // get time now
+        // struct tm * now = localtime( & t  );
+        // stringstream ss;
 
-        ss << "subgraph_" << (now->tm_year + 1900) << '_' << (now->tm_mon + 1) << '_' <<  now->tm_mday << '_'  <<  now->tm_hour << '_' <<  now->tm_min << '_' <<  now->tm_sec << ".csv";
-        fout.open(ss.str());
-        fout << "# of condition triples, # of subgraph triples, rmean, frmean, real hit, time(s), subgraph training iteration" << endl;
+        // ss << "subgraph_" << (now->tm_year + 1900) << '_' << (now->tm_mon + 1) << '_' <<  now->tm_mday << '_'  <<  now->tm_hour << '_' <<  now->tm_min << '_' <<  now->tm_sec << ".csv";
+        // fout.open(ss.str());
+        // fout << "# of condition triples, # of subgraph triples, rmean, frmean, real hit, time(s), subgraph training iteration" << endl;
 
 		cout << "\nTraining subgraph & testing test-set.." << endl;
 		boost::progress_display	cons_bar(data_model.data_test_true.size());
@@ -180,7 +182,7 @@ public:
 				test_triplet_classification_subgraph(i);
                 
                 gettimeofday(&after_single_query, NULL);
-                fout <<  after_single_query.tv_sec + after_single_query.tv_usec/1000000.0 - before_single_query.tv_sec - before_single_query.tv_usec/1000000.0 << ", " << total_epos << endl;
+                // fout <<  after_single_query.tv_sec + after_single_query.tv_usec/1000000.0 - before_single_query.tv_sec - before_single_query.tv_usec/1000000.0 << ", " << total_epos << endl;
 			}
             test_link_prediction();
 
@@ -195,6 +197,7 @@ public:
 		else if (gradient_mode == 1)
 		{
 			get_delta_unit(embedding_relation, embedding_clusters, size_clusters);
+            srand((unsigned int)time(0));
 			for (auto i = 0; i < data_model.data_test_true.size(); i++)
 			{
 				++cons_bar;
@@ -205,6 +208,8 @@ public:
 				deep_copy_for_subgraph(embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters);
 				
                 //train
+                double ratio = double(subgraph[i].size()) / dev_subgraph[i].size();
+                if (ratio >= 1.0) ratio = 1.0;
 				for (auto tot = 0; tot < total_epos; tot++)
 				{
 #pragma omp parallel for
@@ -215,7 +220,7 @@ public:
 #pragma omp parallel for
 					for (auto j = dev_subgraph[i].begin(); j != dev_subgraph[i].end(); j++)
 					{
-						if (rand() % 10 >= 2) continue;
+						if (double(rand() / RAND_MAX) > ratio) continue;
 						train_triplet_subgraph_BM(*j, embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters, subgraph[i], cut_pos_subgraph[i]);
 					}
 				}
@@ -227,7 +232,7 @@ public:
 				test_triplet_classification_subgraph(i);
 			    
                 gettimeofday(&after_single_query, NULL);
-                fout <<  after_single_query.tv_sec + after_single_query.tv_usec/1000000.0 - before_single_query.tv_sec - before_single_query.tv_usec/1000000.0 << ", " << total_epos << endl;
+                // fout <<  after_single_query.tv_sec + after_single_query.tv_usec/1000000.0 - before_single_query.tv_sec - before_single_query.tv_usec/1000000.0 << ", " << total_epos << endl;
 			}
 
 			print_final_test_link_prediction_subgraph();
@@ -495,7 +500,8 @@ public:
 
 	void test(bool subgraph_task = true, int mode = 0, int budget = 10, int subgraph_epos = 500, int q_in_subgraph = 1, int bipartite_method = 0, int hit_rank = 10)
 	{
-		logging.record();
+        logging.record() << "\t[Budget]\t" << budget;
+        logging.record() << "\t[Subgraph Epos]\t" << subgraph_epos;
 
 		best_link_mean = 1e10;
 		best_link_hitatten = 0;
@@ -536,7 +542,10 @@ public:
 			train_and_test_subgraph(subgraph_epos);
 
 			gettimeofday(&after, NULL);
-			cout << "testing subgraph test_data time : : " << after.tv_sec + after.tv_usec/1000000.0 - before.tv_sec - before.tv_usec/1000000.0 << "seconds" << endl;
+            logging.record() << "testing subgraph test_data time: " << after.tv_sec + after.tv_usec/1000000.0 - before.tv_sec - before.tv_usec/1000000.0 << "seconds";
+            cout << "testing subgraph test_data time: " << after.tv_sec + after.tv_usec/1000000.0 - before.tv_sec - before.tv_usec/1000000.0 << "seconds" << endl;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            logging.record() << "End of the test";
 		}
 		else {
 
@@ -689,7 +698,7 @@ public:
 
 		if (prob_triplets_subgraph(triplet_f, embedding_entity, embedding_relation, embedding_clusters, weights_clusters, size_clusters) <= threshold)
 			++real_hit, ++lreal_hit;
-        fout << real_hit - original_real_hit << ", ";
+        // fout << real_hit - original_real_hit << ", ";
 	}
 
 	void print_final_test_triplet_classification_subgraph()
@@ -907,7 +916,7 @@ public:
 			}
 		}
 
-        fout << data_model.data_condition[idx].size() << ", " << subgraph[idx].size() << ", " << rmean << ", " << frmean << ", ";
+        // fout << data_model.data_condition[idx].size() << ", " << subgraph[idx].size() << ", " << rmean << ", " << frmean << ", ";
         // finding subgraph instances whose rank is smaller 5th rank
         // if (rmean <= 5)
         // {

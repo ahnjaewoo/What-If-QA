@@ -56,7 +56,7 @@ const Dataset WN18_("WN18_", "/home/rudvlf0413/kge/What-If-QA/WN18/", "train_.tx
 // const Dataset WN18_("WN18_", "/home/rudvlf0413/kge/What-If-QA/TOYDATA/", "train_.txt", "dev_.txt", "test_.txt", "condition_.txt", true);
 const Dataset Wordnet("Wordnet", "/home/bookman/data/Knowledge Embedding/Wordnet/", "train.txt", "dev.txt", "test.txt", false);
 const Dataset Freebase("Freebase", "/home/bookman/data/Knowledge Embedding/Freebase/", "train.txt", "dev.txt", "test.txt", false);
-const string report_path = "/home/bookman/Report/";
+const string report_path = "/home/rudvlf0413/kge/What-If-QA/logs/";
 const string semantic_vfile_FB15K = "/home/bookman/data/Knowledge Embedding/FB15K/topics.bsd";
 const string semantic_tfile_FB15K = "/home/bookman/data/Knowledge Embedding/FB15K/description.txt";
 const string semantic_vfile_WN18 = "/home/bookman/data/Knowledge Embedding/WN18/topics.bsd";
