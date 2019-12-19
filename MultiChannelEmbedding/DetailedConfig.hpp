@@ -58,9 +58,9 @@ const Dataset Wordnet("Wordnet", "/home/bookman/data/Knowledge Embedding/Wordnet
 const Dataset Freebase("Freebase", "/home/bookman/data/Knowledge Embedding/Freebase/", "train.txt", "dev.txt", "test.txt", false);
 const string report_path = "/home/rudvlf0413/kge/What-If-QA/logs/";
 const string semantic_vfile_FB15K = "/home/bookman/data/Knowledge Embedding/FB15K/topics.bsd";
-const string semantic_tfile_FB15K = "/home/bookman/data/Knowledge Embedding/FB15K/description.txt";
+const string semantic_tfile_FB15K = "/home/rudvlf0413/kge/What-If-QA/FB15K/description.txt";
 const string semantic_vfile_WN18 = "/home/bookman/data/Knowledge Embedding/WN18/topics.bsd";
-const string semantic_tfile_WN18 = "/home/bookman/data/Knowledge Embedding/WN18/descriptions.txt";
+const string semantic_tfile_WN18 = "/home/rudvlf0413/kge/What-If-QA/WN18/descriptions.txt";
 const string type_file_FB15K = "/home/bookman/data/Knowledge Embedding/FB15K/type.txt";
 const string type_file_FB15KZS = "/home/bookman/data/Knowledge Embedding/FB15KZS/type.txt";
 const string triple_zeroshot_FB15K = "/home/bookman/data/Knowledge Embedding/FB15KZS/zeroshot.txt";
