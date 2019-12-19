@@ -13,6 +13,9 @@ int main(int argc, char* argv[])
 	Model* model = nullptr;
 
 	cout << "this is real test0!" << endl;
+    // model = new SemanticModel(WN18_, LinkPredictionTail, report_path, 10, 0.01, 0.1);
+    // model->run(1);
+
 	if (argc == 1)
 	{
 		cout << "no params!" << endl;
@@ -74,6 +77,49 @@ int main(int argc, char* argv[])
 			break;
 		case 2:
 			model = new TransE(WN18_, LinkPredictionTail, report_path, atoi(argv[3]), atof(argv[4]), atof(argv[5]), atof(argv[6]), atof(argv[7]), atoi(argv[8]));
+			break;
+		default:
+			cout << "wrong data params!" << endl;
+			return 0;
+			break;
+		}
+		//calculating training time
+		struct timeval after, before;
+		gettimeofday(&before, NULL);
+
+		model->run(atoi(argv[12]));
+
+		gettimeofday(&after, NULL);
+		cout << "training training_data time :  " << after.tv_sec + after.tv_usec/1000000.0 - before.tv_sec - before.tv_usec/1000000.0 << "seconds" << endl;
+        model->logging.record() << "training training_data time :  " << after.tv_sec + after.tv_usec/1000000.0 - before.tv_sec - before.tv_usec/1000000.0 << "seconds";
+
+		//testing
+		switch (atoi(argv[9]))
+		{
+		case 0:
+			model->test(false);
+			break;
+		case 1:
+			model->test(true, atoi(argv[10]), atoi(argv[11]), atoi(argv[13]), atoi(argv[14]), atoi(argv[15]));
+			break;
+		default:
+			cout << "wrong test stage params!" << endl;
+			return 0;
+			break;
+		}
+	}
+
+    /* Semantic TransE case */
+	else if (atoi(argv[1]) == 3)
+	{
+		//creating model
+		switch (atoi(argv[2]))
+		{
+		case 1:
+			model = new SemanticModel(FB15K_, LinkPredictionTail, report_path, atoi(argv[3]), atof(argv[4]), atof(argv[5]), atof(argv[6]), atof(argv[7]), atoi(argv[8]));
+			break;
+		case 2:
+			model = new SemanticModel(WN18_, LinkPredictionTail, report_path, atoi(argv[3]), atof(argv[4]), atof(argv[5]), atof(argv[6]), atof(argv[7]), atoi(argv[8]));
 			break;
 		default:
 			cout << "wrong data params!" << endl;

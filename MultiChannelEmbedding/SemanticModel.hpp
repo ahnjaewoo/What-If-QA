@@ -18,6 +18,12 @@ protected:
 	const double balance;
 
 public:
+    int multify;
+    double beta;
+    double delta;
+    double delta_unit;
+
+public:
 	SemanticModel(
 		const Dataset& dataset,
 		const TaskType& task_type,
@@ -51,8 +57,11 @@ public:
 		int dim,
 		double alpha,
 		double training_threshold,
+        double Beta = 0.1,
+        double Delta = 0.1,
+        int Multify = 2,
 		double balance = 0.1)
-		:TransE(dataset, task_type, logging_base_path, dim, alpha, training_threshold),
+		:TransE(dataset, task_type, logging_base_path, dim, alpha, training_threshold, Beta, Delta, Multify),
 		balance(balance)
 	{
 		logging.record() << "\t[Name]\tSemanticModel.TransE";
@@ -61,12 +70,19 @@ public:
 		logging.record() << "\t[Training Threshold]\t" << training_threshold;
 		logging.record() << "\t[Topic Model]\tLSI";
 		logging.record() << "\t[Balance]\t" << balance;
-
-		v_semantics.resize(count_entity()+10);
+        logging.record() << "\t[BM beta]\t" << Beta;
+        logging.record() << "\t[BM delta]\t" << Delta;
+        
+        v_semantics.resize(count_entity()+10);
 		for (auto& elem : v_semantics)
 		{
 			elem = randn(dim);
 		}
+
+        beta = Beta;
+        delta = Delta;
+        delta_unit = 0.0;
+        multify = Multify;
 	}
 
 	SemanticModel(
@@ -144,6 +160,19 @@ public:
 				- sum(abs(error));
 	}
 
+    virtual double prob_triplets_subgraph(const pair<pair<int, int>, int>& triplet, vector<vec>& embedding_entity_s, vector<vec>& embedding_relation_s,
+                    vector<vector<vec>>& embedding_clusters_s, vector<vec>& weights_clusters_s, vector<int>& size_clusters_s)
+    {
+        vec semantic = semantic_composition(triplet);
+
+        vec error = embedding_entity_s[triplet.first.first]
+                + embedding_relation_s[triplet.second]
+                - embedding_entity_s[triplet.first.second];
+
+        return  - balance * sum(abs(error - as_scalar(semantic.t()*error)*semantic))
+                - sum(abs(error));
+    }
+
 	virtual void train_triplet(const pair<pair<int, int>, int>& triplet)
 	{
 		vec& head = embedding_entity[triplet.first.first];
@@ -195,6 +224,90 @@ public:
 		if (norm_L2(tail_f) > 1.0)
 			tail_f = normalise(tail_f);
 	}
+
+    virtual void train_triplet_subgraph(const pair<pair<int, int>, int>& triplet, vector<vec>& embedding_entity_s, vector<vec>& embedding_relation_s,
+            vector<vector<vec>>& embedding_clusters_s, vector<vec>& weights_clusters_s, vector<int>& size_clusters_s, vector<pair<pair<int, int>, int>> subgraph)
+    {
+        vec& head = embedding_entity_s[triplet.first.first];
+        vec& tail = embedding_entity_s[triplet.first.second];
+        vec& relation = embedding_relation_s[triplet.second];
+
+        pair<pair<int, int>, int> triplet_f;
+        data_model.sample_false_triplet(triplet, triplet_f);
+
+        if (prob_triplets_subgraph(triplet, embedding_entity_s, embedding_relation_s, embedding_clusters_s, weights_clusters_s, size_clusters_s) - prob_triplets_subgraph(triplet_f, embedding_entity_s, embedding_relation_s, embedding_clusters_s, weights_clusters_s, size_clusters_s) > training_threshold)
+            return;
+
+        vec& head_f = embedding_entity_s[triplet_f.first.first];
+        vec& tail_f = embedding_entity_s[triplet_f.first.second];
+        vec& relation_f = embedding_relation_s[triplet_f.second];
+        
+        vec semantic = semantic_composition(triplet);
+        vec error = head + relation - tail;
+        double projection = as_scalar(semantic.t()*error);
+        vec grad = sign(error - projection * semantic);
+        grad = grad - as_scalar(grad.t()*semantic)*semantic;
+
+        head -= alpha * balance * grad + alpha * sign(error);
+        tail += alpha * balance * grad + alpha * sign(error);
+        relation -= alpha * balance * grad + alpha * sign(error);
+
+        vec semantic_f = semantic_composition(triplet_f);
+        vec error_f = head_f + relation_f - tail_f;
+        double projection_f = as_scalar(semantic_f.t()*error_f);
+        vec grad_f = sign(error_f - projection_f * semantic_f);
+        grad_f = grad_f - as_scalar(grad_f.t()*semantic_f)*semantic_f;
+
+        head_f += alpha * balance * grad_f + alpha * sign(error_f);
+        tail_f -= alpha * balance * grad_f + alpha * sign(error_f);
+        relation_f += alpha * balance * grad_f + alpha * sign(error_f);
+
+        if (norm_L2(head) > 1.0)
+            head = normalise(head);
+
+        if (norm_L2(tail) > 1.0)
+            tail = normalise(tail);
+
+        if (norm_L2(relation) > 1.0)
+            relation = normalise(relation);
+
+        if (norm_L2(head_f) > 1.0)
+            head_f = normalise(head_f);
+
+        if (norm_L2(tail_f) > 1.0)
+            tail_f = normalise(tail_f);
+    }
+
+    virtual void train_triplet_subgraph_BM(const pair<pair<int, int>, int>& triplet, vector<vec>& embedding_entity_s, vector<vec>& embedding_relation_s,
+            vector<vector<vec>>& embedding_clusters_s, vector<vec>& weights_clusters_s, vector<int>& size_clusters_s, 
+            vector<pair<pair<int, int>, int>> subgraph, vector<int> cut_pos)
+    {
+        vec& head = embedding_entity_s[triplet.first.first];
+        vec& tail = embedding_entity_s[triplet.first.second];
+        vec& relation = embedding_relation_s[triplet.second];
+
+        if (prob_triplets_subgraph(triplet, embedding_entity_s, embedding_relation_s, embedding_clusters_s, weights_clusters_s, size_clusters_s) - prob_triplets(triplet) > -delta * delta_unit)
+            return;
+
+        vec semantic = semantic_composition(triplet);
+        vec error = head + relation - tail;
+        double projection = as_scalar(semantic.t()*error);
+        vec grad = sign(error - projection * semantic);
+        grad = grad - as_scalar(grad.t()*semantic)*semantic;
+
+        head -= alpha * balance * grad + alpha * sign(error);
+        tail += alpha * balance * grad + alpha * sign(error);
+        relation -= alpha * balance * grad + alpha * sign(error);
+
+        if (norm_L2(head) > 1.0)
+            head = normalise(head);
+
+        if (norm_L2(tail) > 1.0)
+            tail = normalise(tail);
+
+        if (norm_L2(relation) > 1.0)
+            relation = normalise(relation);
+    }
 
 public:
 	virtual vec entity_representation(int entity_id) const override
