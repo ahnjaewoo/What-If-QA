@@ -1220,7 +1220,7 @@ public:
 		std::cout << "Raw.BestHITS = " << best_link_hitatten << endl;
 		std::cout << "Raw.BestDEVIATIONS = " << best_link_deviation << endl;
 		logging.record() << "Raw.BestMEANS = " << best_link_mean;
-		logging.record() << "Raw.BestMRR = " << total / rmrr;
+		logging.record() << "Raw.BestMRR = " << rmrr / total;
 		logging.record() << "Raw.BestHITS = " << best_link_hitatten;
 		logging.record() << "Raw.BestDEVIATIONS = " << best_link_deviation;
 
@@ -1230,7 +1230,7 @@ public:
 		std::cout << "Filter.BestHITS = " << best_link_fhitatten << endl;
 		std::cout << "Filter.BestDEVIATIONS = " << best_link_fdeviation << endl;
 		logging.record() << "Filter.BestMEANS = " << best_link_fmean;
-		logging.record() << "Filter.BestMRR= " << total / fmrr;
+		logging.record() << "Filter.BestMRR= " << fmrr / total;
 		logging.record() << "Filter.BestHITS = " << best_link_fhitatten;
 		logging.record() << "Filter.BestDEVIATIONS = " << best_link_fdeviation;
 
